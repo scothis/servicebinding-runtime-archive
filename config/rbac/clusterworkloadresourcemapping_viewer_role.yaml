@@ -1,0 +1,20 @@
+# permissions for end users to view clusterworkloadresourcemappings.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: clusterworkloadresourcemapping-viewer-role
+rules:
+- apiGroups:
+  - servicebinding.io
+  resources:
+  - clusterworkloadresourcemappings
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - servicebinding.io
+  resources:
+  - clusterworkloadresourcemappings/status
+  verbs:
+  - get
