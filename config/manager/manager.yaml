@@ -31,7 +31,7 @@ spec:
         - /manager
         args:
         - --leader-elect
-        image: controller:latest
+        image: ko://github.com/scothis/servicebinding-runtime
         name: manager
         securityContext:
           allowPrivilegeEscalation: false
