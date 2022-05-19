@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/api/v1beta1"
+	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 	"github.com/scothis/servicebinding-runtime/controllers"
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	//+kubebuilder:scaffold:imports
@@ -88,6 +88,14 @@ func main() {
 		reconcilers.NewConfig(mgr, &servicebindingv1beta1.ServiceBinding{}, syncPeriod),
 	).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PodIntent")
+		os.Exit(1)
+	}
+	if err = (&servicebindingv1beta1.ServiceBinding{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "ServiceBinding")
+		os.Exit(1)
+	}
+	if err = (&servicebindingv1beta1.ClusterWorkloadResourceMapping{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "ClusterWorkloadResourceMapping")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

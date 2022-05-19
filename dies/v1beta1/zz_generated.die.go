@@ -25,7 +25,7 @@ import (
 	"dies.dev/apis/meta/v1"
 	json "encoding/json"
 	fmtx "fmt"
-	apiv1beta1 "github.com/scothis/servicebinding-runtime/api/v1beta1"
+	apiv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	unstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	runtime "k8s.io/apimachinery/pkg/runtime"

@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/api/v1beta1"
+	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 	"github.com/scothis/servicebinding-runtime/controllers"
 	dieservicebindingv1beta1 "github.com/scothis/servicebinding-runtime/dies/v1beta1"
 )

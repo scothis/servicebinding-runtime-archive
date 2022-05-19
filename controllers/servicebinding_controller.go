@@ -19,8 +19,8 @@ package controllers
 import (
 	"context"
 
-	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/api/v1beta1"
-	"github.com/servicebinding/service-binding-controller/resolver"
+	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
+	"github.com/scothis/servicebinding-runtime/resolver"
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
