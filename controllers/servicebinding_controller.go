@@ -24,6 +24,7 @@ import (
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 //+kubebuilder:rbac:groups=servicebinding.io,resources=servicebindings,verbs=get;list;watch;create;update;patch;delete
@@ -39,6 +40,7 @@ func ServiceBindingReconciler(c reconcilers.Config) *reconcilers.ResourceReconci
 			Finalizer: servicebindingv1beta1.GroupVersion.Group + "/finalizer",
 			Reconciler: reconcilers.Sequence{
 				ResolveBindingSecret(),
+				ResolveWorkloads(),
 			},
 		},
 
@@ -89,4 +91,58 @@ func ResolveBindingSecret() reconcilers.SubReconciler {
 			return nil
 		},
 	}
+}
+
+func ResolveWorkloads() reconcilers.SubReconciler {
+	return &reconcilers.SyncReconciler{
+		Name: "ResolveWorkloads",
+		Sync: func(ctx context.Context, parent *servicebindingv1beta1.ServiceBinding) error {
+			c := reconcilers.RetrieveConfigOrDie(ctx)
+
+			ref := corev1.ObjectReference{
+				APIVersion: parent.Spec.Workload.APIVersion,
+				Kind:       parent.Spec.Workload.Kind,
+				Namespace:  parent.Namespace,
+				Name:       parent.Spec.Workload.Name,
+			}
+			workloads, err := resolver.New(c).LookupWorkloads(ctx, ref, parent.Spec.Workload.Selector)
+			if err != nil {
+				if apierrs.IsNotFound(err) {
+					// leave Unknown, the workload may be created shortly
+					parent.GetConditionManager().MarkUnknown(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadNotFound", "the workload was not found")
+					return nil
+				}
+				if apierrs.IsForbidden(err) {
+					// set False, the operator needs to give access to the resource
+					// see https://servicebinding.io/spec/core/1.0.0/#considerations-for-role-based-access-control-rbac-1
+					if parent.Spec.Workload.Name == "" {
+						parent.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadForbidden", "the controller does not have permission to list the workloads")
+					} else {
+						parent.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadForbidden", "the controller does not have permission to get the workload")
+					}
+					return nil
+				}
+				// TODO handle other err cases
+				return err
+			}
+
+			StashWorkloads(ctx, workloads)
+
+			return nil
+		},
+	}
+}
+
+const WorkloadsStashKey reconcilers.StashKey = "servicebinding.io:workloads"
+
+func StashWorkloads(ctx context.Context, workloads []runtime.Object) {
+	reconcilers.StashValue(ctx, WorkloadsStashKey, workloads)
+}
+
+func RetrieveWorkloads(ctx context.Context) []runtime.Object {
+	value := reconcilers.RetrieveValue(ctx, WorkloadsStashKey)
+	if workloads, ok := value.([]runtime.Object); ok {
+		return workloads
+	}
+	return nil
 }

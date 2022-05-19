@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"testing"
 
+	dieappsv1 "dies.dev/apis/apps/v1"
 	diemetav1 "dies.dev/apis/meta/v1"
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	rtesting "github.com/vmware-labs/reconciler-runtime/testing"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -281,5 +283,225 @@ func TestResolveBindingSecret(t *testing.T) {
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.SubReconcilerTestCase, c reconcilers.Config) reconcilers.SubReconciler {
 		return controllers.ResolveBindingSecret()
+	})
+}
+
+func TestResolveWorkload(t *testing.T) {
+	namespace := "test-namespace"
+	name := "my-binding"
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(servicebindingv1beta1.AddToScheme(scheme))
+
+	serviceBinding := dieservicebindingv1beta1.ServiceBindingBlank.
+		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+			d.Namespace(namespace)
+			d.Name(name)
+		})
+
+	workload := dieappsv1.DeploymentBlank.
+		DieStamp(func(r *appsv1.Deployment) {
+			r.APIVersion = "apps/v1"
+			r.Kind = "Deployment"
+			r.ResourceVersion = "999"
+		})
+	workload1 := workload.
+		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+			d.Namespace(namespace)
+			d.Name("my-workload-1")
+			d.AddLabel("app", "my")
+		})
+	workload2 := workload.
+		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+			d.Namespace(namespace)
+			d.Name("my-workload-2")
+			d.AddLabel("app", "my")
+		})
+	workload3 := workload.
+		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+			d.Namespace(namespace)
+			d.Name("not-my-workload")
+			d.AddLabel("app", "not")
+		})
+
+	rts := rtesting.SubReconcilerTestSuite{{
+		Name: "resolve named workload",
+		GivenObjects: []client.Object{
+			workload1,
+			workload2,
+			workload3,
+		},
+		Resource: serviceBinding.
+			SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+				d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+					d.APIVersion("apps/v1")
+					d.Kind("Deployment")
+					d.Name("my-workload-1")
+				})
+			}),
+		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+			controllers.WorkloadsStashKey: []runtime.Object{
+				workload1.DieReleaseUnstructured(),
+			},
+		},
+	}, {
+		Name: "resolve named workload not found",
+		GivenObjects: []client.Object{
+			workload1,
+			workload2,
+			workload3,
+		},
+		Resource: serviceBinding.
+			SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+				d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+					d.APIVersion("apps/v1")
+					d.Kind("Deployment")
+					d.Name("my-workload-not-found")
+				})
+			}),
+		ExpectResource: serviceBinding.
+			SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+				d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+					d.APIVersion("apps/v1")
+					d.Kind("Deployment")
+					d.Name("my-workload-not-found")
+				})
+			}).
+			StatusDie(func(d *dieservicebindingv1beta1.ServiceBindingStatusDie) {
+				d.ConditionsDie(
+					dieservicebindingv1beta1.ServiceBindingConditionReady.
+						Reason("WorkloadNotFound").Message("the workload was not found"),
+					dieservicebindingv1beta1.ServiceBindingConditionWorkloadProjected.
+						Reason("WorkloadNotFound").Message("the workload was not found"),
+				)
+			}),
+	}, {
+		Name: "resolve named workload forbidden",
+		GivenObjects: []client.Object{
+			workload1,
+			workload2,
+			workload3,
+		},
+		Resource: serviceBinding.
+			SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+				d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+					d.APIVersion("apps/v1")
+					d.Kind("Deployment")
+					d.Name("my-workload-1")
+				})
+			}),
+		WithReactors: []rtesting.ReactionFunc{
+			rtesting.InduceFailure("get", "Deployment", rtesting.InduceFailureOpts{
+				Error: apierrs.NewForbidden(schema.GroupResource{}, "my-workload-1", fmt.Errorf("test forbidden")),
+			}),
+		},
+		ExpectResource: serviceBinding.
+			SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+				d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+					d.APIVersion("apps/v1")
+					d.Kind("Deployment")
+					d.Name("my-workload-1")
+				})
+			}).
+			StatusDie(func(d *dieservicebindingv1beta1.ServiceBindingStatusDie) {
+				d.ConditionsDie(
+					dieservicebindingv1beta1.ServiceBindingConditionReady.
+						False().
+						Reason("WorkloadForbidden").
+						Message("the controller does not have permission to get the workload"),
+					dieservicebindingv1beta1.ServiceBindingConditionWorkloadProjected.
+						False().
+						Reason("WorkloadForbidden").
+						Message("the controller does not have permission to get the workload"),
+				)
+			}),
+	}, {
+		Name: "resolve selected workload",
+		GivenObjects: []client.Object{
+			workload1,
+			workload2,
+			workload3,
+		},
+		Resource: serviceBinding.
+			SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+				d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+					d.APIVersion("apps/v1")
+					d.Kind("Deployment")
+					d.SelectorDie(func(d *diemetav1.LabelSelectorDie) {
+						d.AddMatchLabel("app", "my")
+					})
+				})
+			}),
+		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+			controllers.WorkloadsStashKey: []runtime.Object{
+				workload1.DieReleaseUnstructured(),
+				workload2.DieReleaseUnstructured(),
+			},
+		},
+	}, {
+		Name:         "resolve selected workload not found",
+		GivenObjects: []client.Object{},
+		Resource: serviceBinding.
+			SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+				d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+					d.APIVersion("apps/v1")
+					d.Kind("Deployment")
+					d.SelectorDie(func(d *diemetav1.LabelSelectorDie) {
+						d.AddMatchLabel("app", "my")
+					})
+				})
+			}),
+		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+			controllers.WorkloadsStashKey: []runtime.Object{},
+		},
+	}, {
+		Name: "resolve selected workload forbidden",
+		GivenObjects: []client.Object{
+			workload1,
+			workload2,
+			workload3,
+		},
+		Resource: serviceBinding.
+			SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+				d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+					d.APIVersion("apps/v1")
+					d.Kind("Deployment")
+					d.SelectorDie(func(d *diemetav1.LabelSelectorDie) {
+						d.AddMatchLabel("app", "my")
+					})
+				})
+			}),
+		WithReactors: []rtesting.ReactionFunc{
+			rtesting.InduceFailure("list", "DeploymentList", rtesting.InduceFailureOpts{
+				Error: apierrs.NewForbidden(schema.GroupResource{}, "", fmt.Errorf("test forbidden")),
+			}),
+		},
+		ExpectResource: serviceBinding.
+			SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+				d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+					d.APIVersion("apps/v1")
+					d.Kind("Deployment")
+					d.SelectorDie(func(d *diemetav1.LabelSelectorDie) {
+						d.AddMatchLabel("app", "my")
+					})
+				})
+			}).
+			StatusDie(func(d *dieservicebindingv1beta1.ServiceBindingStatusDie) {
+				d.ConditionsDie(
+					dieservicebindingv1beta1.ServiceBindingConditionReady.
+						False().
+						Reason("WorkloadForbidden").
+						Message("the controller does not have permission to list the workloads"),
+					dieservicebindingv1beta1.ServiceBindingConditionWorkloadProjected.
+						False().
+						Reason("WorkloadForbidden").
+						Message("the controller does not have permission to list the workloads"),
+				)
+			}),
+	}}
+
+	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.SubReconcilerTestCase, c reconcilers.Config) reconcilers.SubReconciler {
+		return controllers.ResolveWorkloads()
 	})
 }
