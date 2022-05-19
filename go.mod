@@ -4,10 +4,12 @@ go 1.17
 
 require (
 	dies.dev v0.4.0
-	github.com/vmware-labs/reconciler-runtime v0.5.0
+	github.com/servicebinding/service-binding-controller v0.0.0-20220517155931-0f6fd1a562cf
+	github.com/vmware-labs/reconciler-runtime v0.5.1-0.20220519152757-e9011f2d5b58
+	k8s.io/api v0.24.0
 	k8s.io/apimachinery v0.24.0
 	k8s.io/client-go v0.24.0
-	sigs.k8s.io/controller-runtime v0.12.0
+	sigs.k8s.io/controller-runtime v0.12.1
 )
 
 require (
@@ -70,7 +72,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
-	k8s.io/api v0.24.0 // indirect
 	k8s.io/apiextensions-apiserver v0.24.0 // indirect
 	k8s.io/component-base v0.24.0 // indirect
 	k8s.io/klog/v2 v2.60.1 // indirect

@@ -90,6 +90,10 @@ func (d *ServiceBindingStatusDie) ConditionsDie(conditions ...*diemetav1.Conditi
 	})
 }
 
+var ServiceBindingConditionReady = diemetav1.ConditionBlank.Type(servicebindingv1beta1.ServiceBindingConditionReady).Unknown().Reason("Initializing")
+var ServiceBindingConditionServiceAvailable = diemetav1.ConditionBlank.Type(servicebindingv1beta1.ServiceBindingConditionServiceAvailable).Unknown().Reason("Initializing")
+var ServiceBindingConditionWorkloadProjected = diemetav1.ConditionBlank.Type(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected).Unknown().Reason("Initializing")
+
 func (d *ServiceBindingStatusDie) BindingDie(fn func(d *ServiceBindingSecretReferenceDie)) *ServiceBindingStatusDie {
 	return d.DieStamp(func(r *servicebindingv1beta1.ServiceBindingStatus) {
 		d := ServiceBindingSecretReferenceBlank.DieImmutable(false).DieFeedPtr(r.Binding)

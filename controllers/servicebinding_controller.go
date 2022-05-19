@@ -17,8 +17,13 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
+
 	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/api/v1beta1"
+	"github.com/servicebinding/service-binding-controller/resolver"
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
+	corev1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 )
 
 //+kubebuilder:rbac:groups=servicebinding.io,resources=servicebindings,verbs=get;list;watch;create;update;patch;delete
@@ -27,16 +32,61 @@ import (
 //+kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create;update;patch;delete
 
 // ServiceBindingReconciler reconciles a ServiceBinding object
-func ServiceBindingReconciler(c reconcilers.Config) *reconcilers.ParentReconciler {
-	return &reconcilers.ParentReconciler{
+func ServiceBindingReconciler(c reconcilers.Config) *reconcilers.ResourceReconciler {
+	return &reconcilers.ResourceReconciler{
 		Type: &servicebindingv1beta1.ServiceBinding{},
 		Reconciler: &reconcilers.WithFinalizer{
-			Finalizer:  servicebindingv1beta1.GroupVersion.Group + "/finalizer",
+			Finalizer: servicebindingv1beta1.GroupVersion.Group + "/finalizer",
 			Reconciler: reconcilers.Sequence{
-				// TODO implement
+				ResolveBindingSecret(),
 			},
 		},
 
 		Config: c,
+	}
+}
+
+func ResolveBindingSecret() reconcilers.SubReconciler {
+	return &reconcilers.SyncReconciler{
+		Name: "ResolveBindingSecret",
+		Sync: func(ctx context.Context, parent *servicebindingv1beta1.ServiceBinding) error {
+			c := reconcilers.RetrieveConfigOrDie(ctx)
+
+			ref := corev1.ObjectReference{
+				APIVersion: parent.Spec.Service.APIVersion,
+				Kind:       parent.Spec.Service.Kind,
+				Namespace:  parent.Namespace,
+				Name:       parent.Spec.Service.Name,
+			}
+			secretName, err := resolver.New(c).LookupBindingSecret(ctx, ref)
+			if err != nil {
+				if apierrs.IsNotFound(err) {
+					// leave Unknown, the provisioned service may be created shortly
+					parent.GetConditionManager().MarkUnknown(servicebindingv1beta1.ServiceBindingConditionServiceAvailable, "ServiceNotFound", "the service was not found")
+					return nil
+				}
+				if apierrs.IsForbidden(err) {
+					// set False, the operator needs to give access to the resource
+					// see https://servicebinding.io/spec/core/1.0.0/#considerations-for-role-based-access-control-rbac
+					parent.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionServiceAvailable, "ServiceForbidden", "the controller does not have permission to get the service")
+					return nil
+				}
+				// TODO handle other err cases
+				return err
+			}
+
+			if secretName != "" {
+				// success
+				parent.GetConditionManager().MarkTrue(servicebindingv1beta1.ServiceBindingConditionServiceAvailable, "ResolvedBindingSecret", "")
+				parent.Status.Binding = &servicebindingv1beta1.ServiceBindingSecretReference{Name: secretName}
+			} else {
+				// leave Unknown, not success but also not an error
+				parent.GetConditionManager().MarkUnknown(servicebindingv1beta1.ServiceBindingConditionServiceAvailable, "ServiceMissingBinding", "the service was found, but did not contain a binding secret")
+				// TODO should we clear the existing binding?
+				parent.Status.Binding = nil
+			}
+
+			return nil
+		},
 	}
 }
