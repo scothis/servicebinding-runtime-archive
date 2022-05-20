@@ -20,6 +20,14 @@ rules:
 - apiGroups:
   - servicebinding.io
   resources:
+  - clusterworkloadresourcemappings
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - servicebinding.io
+  resources:
   - servicebindings
   verbs:
   - create

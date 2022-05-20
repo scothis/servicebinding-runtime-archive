@@ -18,13 +18,22 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
+	"github.com/scothis/servicebinding-runtime/projector"
 	"github.com/scothis/servicebinding-runtime/resolver"
+	"github.com/vmware-labs/reconciler-runtime/apis"
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	controllerruntime "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 //+kubebuilder:rbac:groups=servicebinding.io,resources=servicebindings,verbs=get;list;watch;create;update;patch;delete
@@ -41,6 +50,8 @@ func ServiceBindingReconciler(c reconcilers.Config) *reconcilers.ResourceReconci
 			Reconciler: reconcilers.Sequence{
 				ResolveBindingSecret(),
 				ResolveWorkloads(),
+				ProjectBinding(),
+				PatchWorkloads(),
 			},
 		},
 
@@ -95,7 +106,8 @@ func ResolveBindingSecret() reconcilers.SubReconciler {
 
 func ResolveWorkloads() reconcilers.SubReconciler {
 	return &reconcilers.SyncReconciler{
-		Name: "ResolveWorkloads",
+		Name:                   "ResolveWorkloads",
+		SyncDuringFinalization: true,
 		Sync: func(ctx context.Context, parent *servicebindingv1beta1.ServiceBinding) error {
 			c := reconcilers.RetrieveConfigOrDie(ctx)
 
@@ -133,6 +145,94 @@ func ResolveWorkloads() reconcilers.SubReconciler {
 	}
 }
 
+//+kubebuilder:rbac:groups=servicebinding.io,resources=clusterworkloadresourcemappings,verbs=get;list;watch
+
+func ProjectBinding() reconcilers.SubReconciler {
+	return &reconcilers.SyncReconciler{
+		Name:                   "ProjectBinding",
+		SyncDuringFinalization: true,
+		Sync: func(ctx context.Context, parent *servicebindingv1beta1.ServiceBinding) error {
+			c := reconcilers.RetrieveConfigOrDie(ctx)
+			projector := projector.New(resolver.New(c))
+
+			workloads := RetrieveWorkloads(ctx)
+			projectedWorkloads := make([]runtime.Object, len(workloads))
+
+			for i := range workloads {
+				workload := workloads[i].DeepCopyObject()
+				if !parent.DeletionTimestamp.IsZero() {
+					if err := projector.Unproject(ctx, parent, workload); err != nil {
+						return err
+					}
+				} else {
+					if err := projector.Project(ctx, parent, workload); err != nil {
+						return err
+					}
+				}
+				projectedWorkloads[i] = workload
+			}
+
+			StashProjectedWorkloads(ctx, projectedWorkloads)
+
+			return nil
+		},
+
+		Setup: func(ctx context.Context, mgr controllerruntime.Manager, bldr *builder.Builder) error {
+			bldr.Watches(&source.Kind{Type: &servicebindingv1beta1.ClusterWorkloadResourceMapping{}}, handler.Funcs{})
+			return nil
+		},
+	}
+}
+
+func PatchWorkloads() reconcilers.SubReconciler {
+	return &reconcilers.SyncReconciler{
+		Name:                   "PatchWorkloads",
+		SyncDuringFinalization: true,
+		Sync: func(ctx context.Context, parent *servicebindingv1beta1.ServiceBinding) error {
+			c := reconcilers.RetrieveConfigOrDie(ctx)
+
+			workloads := RetrieveWorkloads(ctx)
+			projectedWorkloads := RetrieveProjectedWorkloads(ctx)
+
+			if len(workloads) != len(projectedWorkloads) {
+				panic(fmt.Errorf("workloads and projectedWorkloads must have the same number of items"))
+			}
+
+			for i := range workloads {
+				workload := workloads[i].(client.Object)
+				projectedWorkload := projectedWorkloads[i].(client.Object)
+				if workload.GetUID() != projectedWorkload.GetUID() || workload.GetResourceVersion() != projectedWorkload.GetResourceVersion() {
+					panic(fmt.Errorf("workload and projectedWorkload must have the same uid and resourceVersion"))
+				}
+				if equality.Semantic.DeepEqual(projectedWorkload, workload) {
+					continue
+				}
+				if err := c.Update(ctx, projectedWorkload); err != nil {
+					if apierrs.IsNotFound(err) {
+						// someone must of deleted the workload while we were operating on it
+						continue
+					}
+					if apierrs.IsForbidden(err) {
+						// set False, the operator needs to give access to the resource
+						// see https://servicebinding.io/spec/core/1.0.0/#considerations-for-role-based-access-control-rbac-1
+						parent.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadForbidden", "the controller does not have permission to update the workloads")
+						return nil
+					}
+					// TODO handle other err cases
+					return err
+				}
+			}
+
+			// update the WorkloadProjected condition to indicate success, but only if the condition has not already been set with another status
+			if cond := parent.Status.GetCondition(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected); apis.ConditionIsUnknown(cond) && cond.Reason == "Initializing" {
+				parent.GetConditionManager().MarkTrue(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadProjected", "")
+			}
+
+			return nil
+		},
+	}
+}
+
 const WorkloadsStashKey reconcilers.StashKey = "servicebinding.io:workloads"
 
 func StashWorkloads(ctx context.Context, workloads []runtime.Object) {
@@ -141,6 +241,20 @@ func StashWorkloads(ctx context.Context, workloads []runtime.Object) {
 
 func RetrieveWorkloads(ctx context.Context) []runtime.Object {
 	value := reconcilers.RetrieveValue(ctx, WorkloadsStashKey)
+	if workloads, ok := value.([]runtime.Object); ok {
+		return workloads
+	}
+	return nil
+}
+
+const ProjectedWorkloadsStashKey reconcilers.StashKey = "servicebinding.io:projected-workloads"
+
+func StashProjectedWorkloads(ctx context.Context, workloads []runtime.Object) {
+	reconcilers.StashValue(ctx, ProjectedWorkloadsStashKey, workloads)
+}
+
+func RetrieveProjectedWorkloads(ctx context.Context) []runtime.Object {
+	value := reconcilers.RetrieveValue(ctx, ProjectedWorkloadsStashKey)
 	if workloads, ok := value.([]runtime.Object); ok {
 		return workloads
 	}
