@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,6 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+
+	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 )
 
 // New creates a new resolver backed by a controller-runtime client

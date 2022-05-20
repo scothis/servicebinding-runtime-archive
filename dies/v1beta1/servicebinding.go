@@ -18,8 +18,9 @@ package v1beta1
 
 import (
 	diemetav1 "dies.dev/apis/meta/v1"
-	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 )
 
 // +die:object=true

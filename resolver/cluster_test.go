@@ -21,8 +21,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
-	"github.com/scothis/servicebinding-runtime/resolver"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -36,6 +34,9 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
+	"github.com/scothis/servicebinding-runtime/resolver"
 )
 
 func TestClusterResolver_LookupMapping(t *testing.T) {

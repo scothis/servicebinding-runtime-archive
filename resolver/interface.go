@@ -19,10 +19,11 @@ package resolver
 import (
 	"context"
 
-	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 )
 
 type Resolver interface {

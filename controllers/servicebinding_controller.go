@@ -20,9 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
-	"github.com/scothis/servicebinding-runtime/projector"
-	"github.com/scothis/servicebinding-runtime/resolver"
 	"github.com/vmware-labs/reconciler-runtime/apis"
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	corev1 "k8s.io/api/core/v1"
@@ -34,6 +31,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
+	"github.com/scothis/servicebinding-runtime/projector"
+	"github.com/scothis/servicebinding-runtime/resolver"
 )
 
 //+kubebuilder:rbac:groups=servicebinding.io,resources=servicebindings,verbs=get;list;watch;create;update;patch;delete
