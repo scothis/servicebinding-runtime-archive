@@ -21,6 +21,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/vmware-labs/reconciler-runtime/reconcilers"
+	rtesting "github.com/vmware-labs/reconciler-runtime/testing"
+	"github.com/vmware-labs/reconciler-runtime/tracker"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -33,7 +36,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 	"github.com/scothis/servicebinding-runtime/resolver"
@@ -44,9 +46,6 @@ func TestClusterResolver_LookupMapping(t *testing.T) {
 	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(batchv1.AddToScheme(scheme))
 	utilruntime.Must(servicebindingv1beta1.AddToScheme(scheme))
-	restMapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{})
-	restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, nil)
-	restMapper.Add(schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "CronJob"}, nil)
 
 	tests := []struct {
 		name         string
@@ -278,12 +277,14 @@ func TestClusterResolver_LookupMapping(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := context.TODO()
 
-			client := fakeclient.NewClientBuilder().
-				WithScheme(scheme).
-				WithRESTMapper(restMapper).
-				WithObjects(c.givenObjects...).
-				Build()
-			resolver := resolver.New(client)
+			config := reconcilers.Config{
+				Client:  rtesting.NewFakeClient(scheme, c.givenObjects...),
+				Tracker: tracker.New(0),
+			}
+			restMapper := config.RESTMapper().(*meta.DefaultRESTMapper)
+			restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, nil)
+			restMapper.Add(schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "CronJob"}, nil)
+			resolver := resolver.New(config)
 
 			actual, err := resolver.LookupMapping(ctx, c.workload)
 
@@ -389,11 +390,11 @@ func TestClusterResolver_LookupBindingSecret(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := context.TODO()
 
-			client := fakeclient.NewClientBuilder().
-				WithScheme(scheme).
-				WithObjects(c.givenObjects...).
-				Build()
-			resolver := resolver.New(client)
+			config := reconcilers.Config{
+				Client:  rtesting.NewFakeClient(scheme, c.givenObjects...),
+				Tracker: tracker.New(0),
+			}
+			resolver := resolver.New(config)
 
 			actual, err := resolver.LookupBindingSecret(ctx, c.serviceRef)
 
@@ -702,11 +703,11 @@ func TestClusterResolver_LookupWorkloads(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := context.TODO()
 
-			client := fakeclient.NewClientBuilder().
-				WithScheme(scheme).
-				WithObjects(c.givenObjects...).
-				Build()
-			resolver := resolver.New(client)
+			config := reconcilers.Config{
+				Client:  rtesting.NewFakeClient(scheme, c.givenObjects...),
+				Tracker: tracker.New(0),
+			}
+			resolver := resolver.New(config)
 
 			actual, err := resolver.LookupWorkloads(ctx, c.serviceRef, c.selector)
 
