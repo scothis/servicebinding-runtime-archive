@@ -282,8 +282,8 @@ func TestClusterResolver_LookupMapping(t *testing.T) {
 				Tracker: tracker.New(0),
 			}
 			restMapper := config.RESTMapper().(*meta.DefaultRESTMapper)
-			restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, nil)
-			restMapper.Add(schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "CronJob"}, nil)
+			restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, meta.RESTScopeNamespace)
+			restMapper.Add(schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "CronJob"}, meta.RESTScopeNamespace)
 			resolver := resolver.New(config)
 
 			actual, err := resolver.LookupMapping(ctx, c.workload)

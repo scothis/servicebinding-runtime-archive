@@ -56,3 +56,51 @@ spec:
             memory: 64Mi
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: admission-projector
+  annotations:
+    cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
+webhooks:
+- name: interceptor.servicebinding.io
+  namespaceSelector:
+    matchExpressions:
+    - key: control-plane
+      operator: NotIn
+      values: ["controller-manager"]
+  admissionReviewVersions: ["v1"]
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /interceptor
+  failurePolicy: Fail
+  reinvocationPolicy: IfNeeded
+  sideEffects: None
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: trigger
+  annotations:
+    cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
+webhooks:
+- name: trigger.servicebinding.io
+  namespaceSelector:
+    matchExpressions:
+    - key: control-plane
+      operator: NotIn
+      values: ["controller-manager"]
+  admissionReviewVersions: ["v1"]
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /trigger
+  failurePolicy: Ignore
+  reinvocationPolicy: Never
+  sideEffects: None

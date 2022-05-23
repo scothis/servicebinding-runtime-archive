@@ -241,7 +241,7 @@ func TestServiceBindingReconciler(t *testing.T) {
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.ReconcilerTestCase, c reconcilers.Config) reconcile.Reconciler {
 		restMapper := c.RESTMapper().(*meta.DefaultRESTMapper)
-		restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, nil)
+		restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, meta.RESTScopeNamespace)
 		return controllers.ServiceBindingReconciler(c)
 	})
 }
@@ -503,6 +503,7 @@ func TestResolveWorkload(t *testing.T) {
 					d.Name("my-workload-1")
 				})
 			}),
+		ExpectedResult: reconcile.Result{Requeue: true},
 		ExpectResource: serviceBinding.
 			SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
 				d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
@@ -542,6 +543,7 @@ func TestResolveWorkload(t *testing.T) {
 				Error: apierrs.NewForbidden(schema.GroupResource{}, "my-workload-1", fmt.Errorf("test forbidden")),
 			}),
 		},
+		ExpectedResult: reconcile.Result{Requeue: true},
 		ExpectResource: serviceBinding.
 			SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
 				d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
@@ -626,6 +628,7 @@ func TestResolveWorkload(t *testing.T) {
 				Error: apierrs.NewForbidden(schema.GroupResource{}, "", fmt.Errorf("test forbidden")),
 			}),
 		},
+		ExpectedResult: reconcile.Result{Requeue: true},
 		ExpectResource: serviceBinding.
 			SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
 				d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
@@ -802,7 +805,7 @@ func TestProjectBinding(t *testing.T) {
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.SubReconcilerTestCase, c reconcilers.Config) reconcilers.SubReconciler {
 		restMapper := c.RESTMapper().(*meta.DefaultRESTMapper)
-		restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, nil)
+		restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, meta.RESTScopeNamespace)
 		return controllers.ProjectBinding()
 	})
 }

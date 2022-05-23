@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
-	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 )
 
 // New creates a new resolver backed by a reconciler-runtime config

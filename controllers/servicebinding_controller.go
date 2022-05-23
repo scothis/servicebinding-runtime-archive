@@ -26,10 +26,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	controllerruntime "sigs.k8s.io/controller-runtime"
+	ctlr "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
@@ -109,7 +110,7 @@ func ResolveWorkloads() reconcilers.SubReconciler {
 	return &reconcilers.SyncReconciler{
 		Name:                   "ResolveWorkloads",
 		SyncDuringFinalization: true,
-		Sync: func(ctx context.Context, parent *servicebindingv1beta1.ServiceBinding) error {
+		Sync: func(ctx context.Context, parent *servicebindingv1beta1.ServiceBinding) (reconcile.Result, error) {
 			c := reconcilers.RetrieveConfigOrDie(ctx)
 
 			ref := corev1.ObjectReference{
@@ -123,7 +124,8 @@ func ResolveWorkloads() reconcilers.SubReconciler {
 				if apierrs.IsNotFound(err) {
 					// leave Unknown, the workload may be created shortly
 					parent.GetConditionManager().MarkUnknown(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadNotFound", "the workload was not found")
-					return nil
+					// TODO use track rather than requeue
+					return reconcile.Result{Requeue: true}, nil
 				}
 				if apierrs.IsForbidden(err) {
 					// set False, the operator needs to give access to the resource
@@ -133,15 +135,16 @@ func ResolveWorkloads() reconcilers.SubReconciler {
 					} else {
 						parent.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadForbidden", "the controller does not have permission to get the workload")
 					}
-					return nil
+					// TODO use track rather than requeue
+					return reconcile.Result{Requeue: true}, nil
 				}
 				// TODO handle other err cases
-				return err
+				return reconcile.Result{}, err
 			}
 
 			StashWorkloads(ctx, workloads)
 
-			return nil
+			return reconcile.Result{}, nil
 		},
 	}
 }
@@ -178,7 +181,7 @@ func ProjectBinding() reconcilers.SubReconciler {
 			return nil
 		},
 
-		Setup: func(ctx context.Context, mgr controllerruntime.Manager, bldr *builder.Builder) error {
+		Setup: func(ctx context.Context, mgr ctlr.Manager, bldr *builder.Builder) error {
 			bldr.Watches(&source.Kind{Type: &servicebindingv1beta1.ClusterWorkloadResourceMapping{}}, handler.Funcs{})
 			return nil
 		},

@@ -83,21 +83,44 @@ func main() {
 	}
 
 	ctx := ctrl.SetupSignalHandler()
+	config := reconcilers.NewConfig(mgr, &servicebindingv1beta1.ServiceBinding{}, syncPeriod)
 
-	if err = controllers.ServiceBindingReconciler(
-		reconcilers.NewConfig(mgr, &servicebindingv1beta1.ServiceBinding{}, syncPeriod),
-	).SetupWithManager(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PodIntent")
+	serviceBindingController, err := controllers.ServiceBindingReconciler(
+		config,
+	).SetupWithManagerYieldingController(ctx, mgr)
+	if err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ServiceBinding")
 		os.Exit(1)
 	}
-	// if err = (&servicebindingv1beta1.ServiceBinding{}).SetupWebhookWithManager(mgr); err != nil {
-	// 	setupLog.Error(err, "unable to create webhook", "webhook", "ServiceBinding")
-	// 	os.Exit(1)
-	// }
-	// if err = (&servicebindingv1beta1.ClusterWorkloadResourceMapping{}).SetupWebhookWithManager(mgr); err != nil {
-	// 	setupLog.Error(err, "unable to create webhook", "webhook", "ClusterWorkloadResourceMapping")
-	// 	os.Exit(1)
-	// }
+	if err = (&servicebindingv1beta1.ServiceBinding{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "ServiceBinding")
+		os.Exit(1)
+	}
+	if err = (&servicebindingv1beta1.ClusterWorkloadResourceMapping{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "ClusterWorkloadResourceMapping")
+		os.Exit(1)
+	}
+
+	if err = controllers.AdmissionProjectorReconciler(
+		config,
+		// TODO inject from env
+		"servicebinding-runtime-admission-projector",
+	).SetupWithManager(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "AdmissionProjector")
+		os.Exit(1)
+	}
+	mgr.GetWebhookServer().Register("/interceptor", controllers.AdmissionProjectorWebhook(config))
+
+	if err = controllers.TriggerReconciler(
+		config,
+		// TODO inject from env
+		"servicebinding-runtime-trigger",
+	).SetupWithManager(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Trigger")
+		os.Exit(1)
+	}
+	mgr.GetWebhookServer().Register("/trigger", controllers.TriggerWebhook(config, serviceBindingController))
+
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
