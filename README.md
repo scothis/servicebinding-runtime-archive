@@ -10,21 +10,21 @@ You’ll need a Kubernetes cluster to run against. You can use [KIND](https://si
 ### Running on the cluster
 1. Define where to publish images:
 
-```sh
-export KO_DOCKER_REPO=<a-repository-you-can-write-to>
-```
+   ```sh
+   export KO_DOCKER_REPO=<a-repository-you-can-write-to>
+   ```
 
-For kind, a registry is not required:
+   For kind, a registry is not required:
 
-```sh
-export KO_DOCKER_REPO=kind.local/servicebinding
-```
+   ```sh
+   export KO_DOCKER_REPO=kind.local/servicebinding
+   ```
 	
 1. Build and Deploy the controller to the cluster:
 
-```sh
-make deploy
-```
+   ```sh
+   make deploy
+   ```
 
 ### Undeploy controller
 Undeploy the controller to the cluster:
@@ -37,7 +37,7 @@ make undeploy
 
 ### Test It Out
 
-1. Run the unit tests:
+Run the unit tests:
 
 ```sh
 make test
@@ -53,6 +53,10 @@ make manifests
 **NOTE:** Run `make --help` for more information on all potential `make` targets
 
 More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+
+## Acknowledgements
+
+Large chunks of this code base are from the upstream [reference implementation](https://github.com/servicebinding/service-binding-controller) for the service binding specification, include the apis, projector and resolver packages. These sources retain the upstream copyright headers
 
 ## License
 
