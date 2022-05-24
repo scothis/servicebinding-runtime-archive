@@ -2,12 +2,10 @@ module github.com/scothis/servicebinding-runtime
 
 go 1.17
 
-replace github.com/vmware-labs/reconciler-runtime => github.com/scothis/reconciler-runtime v0.4.1-0.20220523212834-383040f92010
-
 require (
 	dies.dev v0.4.0
 	github.com/google/go-cmp v0.5.8
-	github.com/vmware-labs/reconciler-runtime v0.5.1-0.20220519152757-e9011f2d5b58
+	github.com/vmware-labs/reconciler-runtime v0.5.1-0.20220524120927-6ce5e532ef15
 	gomodules.xyz/jsonpatch/v2 v2.2.0
 	k8s.io/api v0.24.0
 	k8s.io/apimachinery v0.24.0
