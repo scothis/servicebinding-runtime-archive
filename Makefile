@@ -87,7 +87,7 @@ uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube
 
 .PHONY: deploy
 deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(KAPP) deploy -a $(KAPP_APP) -n $(KAPP_APP_NAMESPACE) -f <($(KUSTOMIZE) build config/default | $(KO) resolve -f -)
+	$(KAPP) deploy -a $(KAPP_APP) -n $(KAPP_APP_NAMESPACE) -c -f config/kapp -f <($(KUSTOMIZE) build config/default | $(KO) resolve -f -)
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.

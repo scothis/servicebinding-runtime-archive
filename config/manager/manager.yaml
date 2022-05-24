@@ -64,6 +64,7 @@ metadata:
   name: admission-projector
   annotations:
     cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
+    webhook.servicebinding.io/dynamic-rules: ""
 webhooks:
 - name: interceptor.servicebinding.io
   namespaceSelector:
@@ -88,6 +89,7 @@ metadata:
   name: trigger
   annotations:
     cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
+    webhook.servicebinding.io/dynamic-rules: ""
 webhooks:
 - name: trigger.servicebinding.io
   namespaceSelector:

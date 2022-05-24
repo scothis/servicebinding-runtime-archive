@@ -2,7 +2,6 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
   name: aggregate-role
 aggregationRule:
   clusterRoleSelectors:
@@ -16,7 +15,6 @@ aggregationRule:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
   name: k8s-workloads-role
   labels:
     servicebinding.io/controller: "true"
