@@ -20,13 +20,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-logr/logr"
-	"github.com/google/go-cmp/cmp"
 	"github.com/vmware-labs/reconciler-runtime/apis"
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctlr "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -191,13 +190,21 @@ func ProjectBinding() reconcilers.SubReconciler {
 }
 
 func PatchWorkloads() reconcilers.SubReconciler {
+	workloadManager := &reconcilers.ResourceManager{
+		Name: "PatchWorkloads",
+		Type: &unstructured.Unstructured{},
+		MergeBeforeUpdate: func(current, desired *unstructured.Unstructured) {
+			current.SetUnstructuredContent(desired.UnstructuredContent())
+		},
+		SemanticEquals: func(a1, a2 *unstructured.Unstructured) bool {
+			return equality.Semantic.DeepEqual(a1, a2)
+		},
+	}
+
 	return &reconcilers.SyncReconciler{
 		Name:                   "PatchWorkloads",
 		SyncDuringFinalization: true,
 		Sync: func(ctx context.Context, resource *servicebindingv1beta1.ServiceBinding) error {
-			log := logr.FromContextOrDiscard(ctx)
-			c := reconcilers.RetrieveConfigOrDie(ctx)
-
 			workloads := RetrieveWorkloads(ctx)
 			projectedWorkloads := RetrieveProjectedWorkloads(ctx)
 
@@ -211,14 +218,10 @@ func PatchWorkloads() reconcilers.SubReconciler {
 				if workload.GetUID() != projectedWorkload.GetUID() || workload.GetResourceVersion() != projectedWorkload.GetResourceVersion() {
 					panic(fmt.Errorf("workload and projectedWorkload must have the same uid and resourceVersion"))
 				}
-				if equality.Semantic.DeepEqual(workload, projectedWorkload) {
-					continue
-				}
-				diff := cmp.Diff(workload, projectedWorkload)
-				log.Info("update workload", "diff", diff)
-				if err := c.Update(ctx, projectedWorkload); err != nil {
+
+				if _, err := workloadManager.Manage(ctx, resource, workload, projectedWorkload); err != nil {
 					if apierrs.IsNotFound(err) {
-						// someone must of deleted the workload while we were operating on it
+						// someone must have deleted the workload while we were operating on it
 						continue
 					}
 					if apierrs.IsForbidden(err) {

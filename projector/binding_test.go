@@ -28,7 +28,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
 
 	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 )
@@ -106,7 +105,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -272,7 +270,6 @@ func TestBinding(t *testing.T) {
 											Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 											VolumeSource: corev1.VolumeSource{
 												Projected: &corev1.ProjectedVolumeSource{
-													DefaultMode: pointer.Int32(0420),
 													Sources: []corev1.VolumeProjection{
 														{
 															Secret: &corev1.SecretProjection{
@@ -392,7 +389,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -441,7 +437,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -490,7 +485,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -577,7 +571,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -665,7 +658,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -736,7 +728,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -812,7 +803,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -883,7 +873,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -996,7 +985,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1114,7 +1102,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1203,7 +1190,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1354,7 +1340,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1451,7 +1436,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-33333333-3333-3333-3333-333333333333",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1468,7 +1452,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-22222222-2222-2222-2222-222222222222",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1485,7 +1468,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-11111111-1111-1111-1111-111111111111",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1615,7 +1597,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-11111111-1111-1111-1111-111111111111",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1656,7 +1637,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-22222222-2222-2222-2222-222222222222",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1673,7 +1653,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1690,7 +1669,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-33333333-3333-3333-3333-333333333333",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1819,7 +1797,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-11111111-1111-1111-1111-111111111111",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1836,7 +1813,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1921,7 +1897,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-11111111-1111-1111-1111-111111111111",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{
@@ -1938,7 +1913,6 @@ func TestBinding(t *testing.T) {
 									Name: "servicebinding-26894874-4719-4802-8f43-8ceed127b4c2",
 									VolumeSource: corev1.VolumeSource{
 										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: pointer.Int32(0420),
 											Sources: []corev1.VolumeProjection{
 												{
 													Secret: &corev1.SecretProjection{

@@ -26,6 +26,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,6 +44,8 @@ func TestAdmissionProjectorReconciler(t *testing.T) {
 	name := "my-webhook"
 	key := types.NamespacedName{Name: name}
 
+	now := metav1.Now().Rfc3339Copy()
+
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(servicebindingv1beta1.AddToScheme(scheme))
@@ -50,6 +53,7 @@ func TestAdmissionProjectorReconciler(t *testing.T) {
 	webhook := dieadmissionregistrationv1.MutatingWebhookConfigurationBlank.
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Name(name)
+			d.CreationTimestamp(now)
 		}).
 		WebhookDie("projector.servicebinding.io", func(d *dieadmissionregistrationv1.MutatingWebhookDie) {
 			d.ClientConfigDie(func(d *dieadmissionregistrationv1.WebhookClientConfigDie) {
@@ -144,6 +148,8 @@ func TestTriggerReconciler(t *testing.T) {
 	name := "my-webhook"
 	key := types.NamespacedName{Name: name}
 
+	now := metav1.Now().Rfc3339Copy()
+
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(servicebindingv1beta1.AddToScheme(scheme))
@@ -151,6 +157,7 @@ func TestTriggerReconciler(t *testing.T) {
 	webhook := dieadmissionregistrationv1.ValidatingWebhookConfigurationBlank.
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Name(name)
+			d.CreationTimestamp(now)
 		}).
 		WebhookDie("trigger.servicebinding.io", func(d *dieadmissionregistrationv1.ValidatingWebhookDie) {
 			d.ClientConfigDie(func(d *dieadmissionregistrationv1.WebhookClientConfigDie) {

@@ -36,7 +36,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -56,7 +55,7 @@ func TestServiceBindingReconciler(t *testing.T) {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(servicebindingv1beta1.AddToScheme(scheme))
 
-	now := metav1.Now()
+	now := metav1.Now().Rfc3339Copy()
 
 	serviceBinding := dieservicebindingv1beta1.ServiceBindingBlank.
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
@@ -86,6 +85,7 @@ func TestServiceBindingReconciler(t *testing.T) {
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Namespace(namespace)
 			d.Name("my-workload")
+			d.CreationTimestamp(now)
 			d.ResourceVersion("999")
 		}).
 		SpecDie(func(d *dieappsv1.DeploymentSpecDie) {
@@ -115,7 +115,6 @@ func TestServiceBindingReconciler(t *testing.T) {
 					})
 					d.VolumeDie(fmt.Sprintf("servicebinding-%s", uid), func(d *diecorev1.VolumeDie) {
 						d.ProjectedDie(func(d *diecorev1.ProjectedVolumeSourceDie) {
-							d.DefaultMode(pointer.Int32(0420))
 							d.SourcesDie(
 								diecorev1.VolumeProjectionBlank.
 									SecretDie(func(d *diecorev1.SecretProjectionDie) {
@@ -181,6 +180,7 @@ func TestServiceBindingReconciler(t *testing.T) {
 		},
 		ExpectEvents: []rtesting.Event{
 			rtesting.NewEvent(serviceBinding, scheme, corev1.EventTypeNormal, "FinalizerPatched", "Patched finalizer %q", "servicebinding.io/finalizer"),
+			rtesting.NewEvent(serviceBinding, scheme, corev1.EventTypeNormal, "Updated", "Updated Deployment %q", "my-workload"),
 			rtesting.NewEvent(serviceBinding, scheme, corev1.EventTypeNormal, "StatusUpdated", "Updated status"),
 		},
 		ExpectPatches: []rtesting.PatchRef{
@@ -224,6 +224,7 @@ func TestServiceBindingReconciler(t *testing.T) {
 			rtesting.NewTrackRequest(projectedWorkload, serviceBinding, scheme),
 		},
 		ExpectEvents: []rtesting.Event{
+			rtesting.NewEvent(serviceBinding, scheme, corev1.EventTypeNormal, "Updated", "Updated Deployment %q", "my-workload"),
 			rtesting.NewEvent(serviceBinding, scheme, corev1.EventTypeNormal, "FinalizerPatched", "Patched finalizer %q", "servicebinding.io/finalizer"),
 		},
 		ExpectPatches: []rtesting.PatchRef{
@@ -670,7 +671,7 @@ func TestProjectBinding(t *testing.T) {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(servicebindingv1beta1.AddToScheme(scheme))
 
-	now := metav1.Now()
+	now := metav1.Now().Rfc3339Copy()
 
 	serviceBinding := dieservicebindingv1beta1.ServiceBindingBlank.
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
@@ -730,7 +731,6 @@ func TestProjectBinding(t *testing.T) {
 					})
 					d.VolumeDie(fmt.Sprintf("servicebinding-%s", uid), func(d *diecorev1.VolumeDie) {
 						d.ProjectedDie(func(d *diecorev1.ProjectedVolumeSourceDie) {
-							d.DefaultMode(pointer.Int32(0420))
 							d.SourcesDie(
 								diecorev1.VolumeProjectionBlank.
 									SecretDie(func(d *diecorev1.SecretProjectionDie) {
@@ -818,6 +818,8 @@ func TestPatchWorkloads(t *testing.T) {
 	name := "my-binding"
 	uid := types.UID("dde10100-d7b3-4cba-9430-51d60a8612a6")
 
+	now := metav1.Now().Rfc3339Copy()
+
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(servicebindingv1beta1.AddToScheme(scheme))
@@ -826,6 +828,7 @@ func TestPatchWorkloads(t *testing.T) {
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Namespace(namespace)
 			d.Name(name)
+			d.CreationTimestamp(now)
 		}).
 		StatusDie(func(d *dieservicebindingv1beta1.ServiceBindingStatusDie) {
 			d.ConditionsDie(
@@ -843,6 +846,7 @@ func TestPatchWorkloads(t *testing.T) {
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Namespace(namespace)
 			d.Name("my-workload")
+			d.CreationTimestamp(now)
 			d.ResourceVersion("999")
 			d.UID(uid)
 		}).
@@ -904,6 +908,9 @@ func TestPatchWorkloads(t *testing.T) {
 					dieservicebindingv1beta1.ServiceBindingConditionWorkloadProjected.True().Reason("WorkloadProjected"),
 				)
 			}),
+		ExpectEvents: []rtesting.Event{
+			rtesting.NewEvent(serviceBinding, scheme, corev1.EventTypeNormal, "Updated", "Updated Deployment %q", "my-workload"),
+		},
 		ExpectUpdates: []client.Object{
 			workload.
 				SpecDie(func(d *dieappsv1.DeploymentSpecDie) {
@@ -935,6 +942,9 @@ func TestPatchWorkloads(t *testing.T) {
 					dieservicebindingv1beta1.ServiceBindingConditionWorkloadProjected.True().Reason("WorkloadProjected"),
 				)
 			}),
+		ExpectEvents: []rtesting.Event{
+			rtesting.NewEvent(serviceBinding, scheme, corev1.EventTypeWarning, "UpdateFailed", "Failed to update Deployment %q: deployments.apps %q not found", "my-workload", "my-workload"),
+		},
 		ExpectUpdates: []client.Object{
 			workload.
 				SpecDie(func(d *dieappsv1.DeploymentSpecDie) {
@@ -982,6 +992,9 @@ func TestPatchWorkloads(t *testing.T) {
 						Message("the controller does not have permission to update the workloads"),
 				)
 			}),
+		ExpectEvents: []rtesting.Event{
+			rtesting.NewEvent(serviceBinding, scheme, corev1.EventTypeWarning, "UpdateFailed", "Failed to update Deployment %q: forbidden: test forbidden", "my-workload"),
+		},
 		ExpectUpdates: []client.Object{
 			workload.
 				SpecDie(func(d *dieappsv1.DeploymentSpecDie) {

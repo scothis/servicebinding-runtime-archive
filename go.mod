@@ -4,8 +4,9 @@ go 1.17
 
 require (
 	dies.dev v0.4.0
+	github.com/go-logr/logr v1.2.0
 	github.com/google/go-cmp v0.5.8
-	github.com/vmware-labs/reconciler-runtime v0.5.1-0.20220525000555-2a473ffd8431
+	github.com/vmware-labs/reconciler-runtime v0.5.1-0.20220525154226-f8e2ae6c520d
 	gomodules.xyz/jsonpatch/v2 v2.2.0
 	k8s.io/api v0.24.0
 	k8s.io/apimachinery v0.24.0
@@ -32,7 +33,6 @@ require (
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
-	github.com/go-logr/logr v1.2.0 // indirect
 	github.com/go-logr/zapr v1.2.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.5 // indirect

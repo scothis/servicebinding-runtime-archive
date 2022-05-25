@@ -61,10 +61,9 @@ func AdmissionProjectorReconciler(c reconcilers.Config, name string) *reconciler
 	}
 
 	return &reconcilers.AggregateReconciler{
-		Name:     "AdmissionProjector",
-		Type:     &admissionregistrationv1.MutatingWebhookConfiguration{},
-		ListType: &admissionregistrationv1.MutatingWebhookConfigurationList{},
-		Request:  req,
+		Name:    "AdmissionProjector",
+		Type:    &admissionregistrationv1.MutatingWebhookConfiguration{},
+		Request: req,
 		Reconciler: reconcilers.Sequence{
 			LoadServiceBindings(req),
 			InterceptGVKs(),
@@ -208,10 +207,9 @@ func TriggerReconciler(c reconcilers.Config, name string) *reconcilers.Aggregate
 	}
 
 	return &reconcilers.AggregateReconciler{
-		Name:     "Trigger",
-		Type:     &admissionregistrationv1.ValidatingWebhookConfiguration{},
-		ListType: &admissionregistrationv1.ValidatingWebhookConfigurationList{},
-		Request:  req,
+		Name:    "Trigger",
+		Type:    &admissionregistrationv1.ValidatingWebhookConfiguration{},
+		Request: req,
 		Reconciler: reconcilers.Sequence{
 			LoadServiceBindings(req),
 			TriggerGVKs(),
