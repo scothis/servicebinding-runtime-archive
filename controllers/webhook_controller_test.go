@@ -161,12 +161,22 @@ func TestTriggerReconciler(t *testing.T) {
 			})
 			d.RulesDie(
 				dieadmissionregistrationv1.RuleWithOperationsBlank.
+					APIGroups("apps").
+					APIVersions("*").
+					Resources("deployments").
+					Operations(
+						admissionregistrationv1.Create,
+						admissionregistrationv1.Update,
+						admissionregistrationv1.Delete,
+					),
+				dieadmissionregistrationv1.RuleWithOperationsBlank.
 					APIGroups("example").
 					APIVersions("*").
 					Resources("myservices").
 					Operations(
 						admissionregistrationv1.Create,
 						admissionregistrationv1.Update,
+						admissionregistrationv1.Delete,
 					),
 			)
 		})
@@ -236,6 +246,7 @@ func TestTriggerReconciler(t *testing.T) {
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.ReconcilerTestCase, c reconcilers.Config) reconcile.Reconciler {
 		restMapper := c.RESTMapper().(*meta.DefaultRESTMapper)
+		restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, meta.RESTScopeNamespace)
 		restMapper.Add(schema.GroupVersionKind{Group: "example", Version: "v1", Kind: "MyService"}, meta.RESTScopeNamespace)
 		return controllers.TriggerReconciler(c, name)
 	})
@@ -335,6 +346,23 @@ func TestInterceptGVKs(t *testing.T) {
 				{Group: "apps", Version: "v1", Kind: "Deployment"},
 			},
 		},
+	}, {
+		Name:     "append workload gvks",
+		Resource: webhook,
+		GivenStashedValues: map[reconcilers.StashKey]interface{}{
+			controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
+				serviceBinding.DieRelease(),
+			},
+			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+				{Group: "example", Version: "v1", Kind: "MyService"},
+			},
+		},
+		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+				{Group: "example", Version: "v1", Kind: "MyService"},
+				{Group: "apps", Version: "v1", Kind: "Deployment"},
+			},
+		},
 	}}
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.SubReconcilerTestCase, c reconcilers.Config) reconcilers.SubReconciler {
@@ -382,6 +410,23 @@ func TestTriggerGVKs(t *testing.T) {
 			},
 		},
 	}, {
+		Name:     "append service gvks",
+		Resource: webhook,
+		GivenStashedValues: map[reconcilers.StashKey]interface{}{
+			controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
+				serviceBinding.DieRelease(),
+			},
+			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+				{Group: "apps", Version: "v1", Kind: "Deployment"},
+			},
+		},
+		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+				{Group: "apps", Version: "v1", Kind: "Deployment"},
+				{Group: "example", Version: "v1", Kind: "MyService"},
+			},
+		},
+	}, {
 		Name:     "ignore direct binding",
 		Resource: webhook,
 		GivenStashedValues: map[reconcilers.StashKey]interface{}{
@@ -414,8 +459,7 @@ func TestWebhookRules(t *testing.T) {
 	webhook := dieadmissionregistrationv1.ValidatingWebhookConfigurationBlank
 
 	operations := []admissionregistrationv1.OperationType{
-		admissionregistrationv1.Create,
-		admissionregistrationv1.Update,
+		admissionregistrationv1.Connect,
 	}
 
 	rts := rtesting.SubReconcilerTestSuite{{
@@ -536,6 +580,6 @@ func TestWebhookRules(t *testing.T) {
 		restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}, meta.RESTScopeNamespace)
 		restMapper.Add(schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}, meta.RESTScopeNamespace)
 
-		return controllers.WebhookRules()
+		return controllers.WebhookRules(operations)
 	})
 }

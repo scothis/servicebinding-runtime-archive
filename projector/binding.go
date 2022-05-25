@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/pointer"
 
 	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 )
@@ -110,6 +111,7 @@ func (p *serviceBindingProjector) projectVolume(binding *servicebindingv1beta1.S
 		Name: p.volumeName(binding),
 		VolumeSource: corev1.VolumeSource{
 			Projected: &corev1.ProjectedVolumeSource{
+				DefaultMode: pointer.Int32(0420),
 				Sources: []corev1.VolumeProjection{
 					{
 						Secret: &corev1.SecretProjection{

@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
+	"github.com/google/go-cmp/cmp"
 	"github.com/vmware-labs/reconciler-runtime/apis"
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	corev1 "k8s.io/api/core/v1"
@@ -64,26 +66,26 @@ func ServiceBindingReconciler(c reconcilers.Config) *reconcilers.ResourceReconci
 func ResolveBindingSecret() reconcilers.SubReconciler {
 	return &reconcilers.SyncReconciler{
 		Name: "ResolveBindingSecret",
-		Sync: func(ctx context.Context, parent *servicebindingv1beta1.ServiceBinding) error {
+		Sync: func(ctx context.Context, resource *servicebindingv1beta1.ServiceBinding) error {
 			c := reconcilers.RetrieveConfigOrDie(ctx)
 
 			ref := corev1.ObjectReference{
-				APIVersion: parent.Spec.Service.APIVersion,
-				Kind:       parent.Spec.Service.Kind,
-				Namespace:  parent.Namespace,
-				Name:       parent.Spec.Service.Name,
+				APIVersion: resource.Spec.Service.APIVersion,
+				Kind:       resource.Spec.Service.Kind,
+				Namespace:  resource.Namespace,
+				Name:       resource.Spec.Service.Name,
 			}
 			secretName, err := resolver.New(c).LookupBindingSecret(ctx, ref)
 			if err != nil {
 				if apierrs.IsNotFound(err) {
 					// leave Unknown, the provisioned service may be created shortly
-					parent.GetConditionManager().MarkUnknown(servicebindingv1beta1.ServiceBindingConditionServiceAvailable, "ServiceNotFound", "the service was not found")
+					resource.GetConditionManager().MarkUnknown(servicebindingv1beta1.ServiceBindingConditionServiceAvailable, "ServiceNotFound", "the service was not found")
 					return nil
 				}
 				if apierrs.IsForbidden(err) {
 					// set False, the operator needs to give access to the resource
 					// see https://servicebinding.io/spec/core/1.0.0/#considerations-for-role-based-access-control-rbac
-					parent.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionServiceAvailable, "ServiceForbidden", "the controller does not have permission to get the service")
+					resource.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionServiceAvailable, "ServiceForbidden", "the controller does not have permission to get the service")
 					return nil
 				}
 				// TODO handle other err cases
@@ -92,13 +94,13 @@ func ResolveBindingSecret() reconcilers.SubReconciler {
 
 			if secretName != "" {
 				// success
-				parent.GetConditionManager().MarkTrue(servicebindingv1beta1.ServiceBindingConditionServiceAvailable, "ResolvedBindingSecret", "")
-				parent.Status.Binding = &servicebindingv1beta1.ServiceBindingSecretReference{Name: secretName}
+				resource.GetConditionManager().MarkTrue(servicebindingv1beta1.ServiceBindingConditionServiceAvailable, "ResolvedBindingSecret", "")
+				resource.Status.Binding = &servicebindingv1beta1.ServiceBindingSecretReference{Name: secretName}
 			} else {
 				// leave Unknown, not success but also not an error
-				parent.GetConditionManager().MarkUnknown(servicebindingv1beta1.ServiceBindingConditionServiceAvailable, "ServiceMissingBinding", "the service was found, but did not contain a binding secret")
+				resource.GetConditionManager().MarkUnknown(servicebindingv1beta1.ServiceBindingConditionServiceAvailable, "ServiceMissingBinding", "the service was found, but did not contain a binding secret")
 				// TODO should we clear the existing binding?
-				parent.Status.Binding = nil
+				resource.Status.Binding = nil
 			}
 
 			return nil
@@ -110,30 +112,30 @@ func ResolveWorkloads() reconcilers.SubReconciler {
 	return &reconcilers.SyncReconciler{
 		Name:                   "ResolveWorkloads",
 		SyncDuringFinalization: true,
-		Sync: func(ctx context.Context, parent *servicebindingv1beta1.ServiceBinding) (reconcile.Result, error) {
+		Sync: func(ctx context.Context, resource *servicebindingv1beta1.ServiceBinding) (reconcile.Result, error) {
 			c := reconcilers.RetrieveConfigOrDie(ctx)
 
 			ref := corev1.ObjectReference{
-				APIVersion: parent.Spec.Workload.APIVersion,
-				Kind:       parent.Spec.Workload.Kind,
-				Namespace:  parent.Namespace,
-				Name:       parent.Spec.Workload.Name,
+				APIVersion: resource.Spec.Workload.APIVersion,
+				Kind:       resource.Spec.Workload.Kind,
+				Namespace:  resource.Namespace,
+				Name:       resource.Spec.Workload.Name,
 			}
-			workloads, err := resolver.New(c).LookupWorkloads(ctx, ref, parent.Spec.Workload.Selector)
+			workloads, err := resolver.New(c).LookupWorkloads(ctx, ref, resource.Spec.Workload.Selector)
 			if err != nil {
 				if apierrs.IsNotFound(err) {
 					// leave Unknown, the workload may be created shortly
-					parent.GetConditionManager().MarkUnknown(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadNotFound", "the workload was not found")
+					resource.GetConditionManager().MarkUnknown(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadNotFound", "the workload was not found")
 					// TODO use track rather than requeue
 					return reconcile.Result{Requeue: true}, nil
 				}
 				if apierrs.IsForbidden(err) {
 					// set False, the operator needs to give access to the resource
 					// see https://servicebinding.io/spec/core/1.0.0/#considerations-for-role-based-access-control-rbac-1
-					if parent.Spec.Workload.Name == "" {
-						parent.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadForbidden", "the controller does not have permission to list the workloads")
+					if resource.Spec.Workload.Name == "" {
+						resource.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadForbidden", "the controller does not have permission to list the workloads")
 					} else {
-						parent.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadForbidden", "the controller does not have permission to get the workload")
+						resource.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadForbidden", "the controller does not have permission to get the workload")
 					}
 					// TODO use track rather than requeue
 					return reconcile.Result{Requeue: true}, nil
@@ -155,7 +157,7 @@ func ProjectBinding() reconcilers.SubReconciler {
 	return &reconcilers.SyncReconciler{
 		Name:                   "ProjectBinding",
 		SyncDuringFinalization: true,
-		Sync: func(ctx context.Context, parent *servicebindingv1beta1.ServiceBinding) error {
+		Sync: func(ctx context.Context, resource *servicebindingv1beta1.ServiceBinding) error {
 			c := reconcilers.RetrieveConfigOrDie(ctx)
 			projector := projector.New(resolver.New(c))
 
@@ -164,12 +166,12 @@ func ProjectBinding() reconcilers.SubReconciler {
 
 			for i := range workloads {
 				workload := workloads[i].DeepCopyObject()
-				if !parent.DeletionTimestamp.IsZero() {
-					if err := projector.Unproject(ctx, parent, workload); err != nil {
+				if !resource.DeletionTimestamp.IsZero() {
+					if err := projector.Unproject(ctx, resource, workload); err != nil {
 						return err
 					}
 				} else {
-					if err := projector.Project(ctx, parent, workload); err != nil {
+					if err := projector.Project(ctx, resource, workload); err != nil {
 						return err
 					}
 				}
@@ -192,7 +194,8 @@ func PatchWorkloads() reconcilers.SubReconciler {
 	return &reconcilers.SyncReconciler{
 		Name:                   "PatchWorkloads",
 		SyncDuringFinalization: true,
-		Sync: func(ctx context.Context, parent *servicebindingv1beta1.ServiceBinding) error {
+		Sync: func(ctx context.Context, resource *servicebindingv1beta1.ServiceBinding) error {
+			log := logr.FromContextOrDiscard(ctx)
 			c := reconcilers.RetrieveConfigOrDie(ctx)
 
 			workloads := RetrieveWorkloads(ctx)
@@ -208,9 +211,11 @@ func PatchWorkloads() reconcilers.SubReconciler {
 				if workload.GetUID() != projectedWorkload.GetUID() || workload.GetResourceVersion() != projectedWorkload.GetResourceVersion() {
 					panic(fmt.Errorf("workload and projectedWorkload must have the same uid and resourceVersion"))
 				}
-				if equality.Semantic.DeepEqual(projectedWorkload, workload) {
+				if equality.Semantic.DeepEqual(workload, projectedWorkload) {
 					continue
 				}
+				diff := cmp.Diff(workload, projectedWorkload)
+				log.Info("update workload", "diff", diff)
 				if err := c.Update(ctx, projectedWorkload); err != nil {
 					if apierrs.IsNotFound(err) {
 						// someone must of deleted the workload while we were operating on it
@@ -219,7 +224,7 @@ func PatchWorkloads() reconcilers.SubReconciler {
 					if apierrs.IsForbidden(err) {
 						// set False, the operator needs to give access to the resource
 						// see https://servicebinding.io/spec/core/1.0.0/#considerations-for-role-based-access-control-rbac-1
-						parent.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadForbidden", "the controller does not have permission to update the workloads")
+						resource.GetConditionManager().MarkFalse(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadForbidden", "the controller does not have permission to update the workloads")
 						return nil
 					}
 					// TODO handle other err cases
@@ -228,8 +233,8 @@ func PatchWorkloads() reconcilers.SubReconciler {
 			}
 
 			// update the WorkloadProjected condition to indicate success, but only if the condition has not already been set with another status
-			if cond := parent.Status.GetCondition(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected); apis.ConditionIsUnknown(cond) && cond.Reason == "Initializing" {
-				parent.GetConditionManager().MarkTrue(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadProjected", "")
+			if cond := resource.Status.GetCondition(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected); apis.ConditionIsUnknown(cond) && cond.Reason == "Initializing" {
+				resource.GetConditionManager().MarkTrue(servicebindingv1beta1.ServiceBindingConditionWorkloadProjected, "WorkloadProjected", "")
 			}
 
 			return nil

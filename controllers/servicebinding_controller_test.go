@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -114,6 +115,7 @@ func TestServiceBindingReconciler(t *testing.T) {
 					})
 					d.VolumeDie(fmt.Sprintf("servicebinding-%s", uid), func(d *diecorev1.VolumeDie) {
 						d.ProjectedDie(func(d *diecorev1.ProjectedVolumeSourceDie) {
+							d.DefaultMode(pointer.Int32(0420))
 							d.SourcesDie(
 								diecorev1.VolumeProjectionBlank.
 									SecretDie(func(d *diecorev1.SecretProjectionDie) {
@@ -728,6 +730,7 @@ func TestProjectBinding(t *testing.T) {
 					})
 					d.VolumeDie(fmt.Sprintf("servicebinding-%s", uid), func(d *diecorev1.VolumeDie) {
 						d.ProjectedDie(func(d *diecorev1.ProjectedVolumeSourceDie) {
+							d.DefaultMode(pointer.Int32(0420))
 							d.SourcesDie(
 								diecorev1.VolumeProjectionBlank.
 									SecretDie(func(d *diecorev1.SecretProjectionDie) {

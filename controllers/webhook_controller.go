@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"reflect"
 
+	"github.com/go-logr/logr"
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	"github.com/vmware-labs/reconciler-runtime/tracker"
 	"gomodules.xyz/jsonpatch/v2"
@@ -67,7 +68,7 @@ func AdmissionProjectorReconciler(c reconcilers.Config, name string) *reconciler
 		Reconciler: reconcilers.Sequence{
 			LoadServiceBindings(req),
 			InterceptGVKs(),
-			WebhookRules(),
+			WebhookRules([]admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update}),
 		},
 		DesiredResource: func(ctx context.Context, resource *admissionregistrationv1.MutatingWebhookConfiguration) (client.Object, error) {
 			if resource == nil || len(resource.Webhooks) != 1 {
@@ -99,6 +100,16 @@ func AdmissionProjectorReconciler(c reconcilers.Config, name string) *reconciler
 			return resource.Webhooks[0].Rules
 		},
 
+		Setup: func(ctx context.Context, mgr controllerruntime.Manager, bldr *builder.Builder) error {
+			if err := mgr.GetFieldIndexer().IndexField(ctx, &servicebindingv1beta1.ServiceBinding{}, workloadRefIndexKey, func(obj client.Object) []string {
+				serviceBinding := obj.(*servicebindingv1beta1.ServiceBinding)
+				gvk := schema.FromAPIVersionAndKind(serviceBinding.Spec.Workload.APIVersion, serviceBinding.Spec.Workload.Kind)
+				return []string{workloadRefIndexValue(gvk.Group, gvk.Kind)}
+			}); err != nil {
+				return err
+			}
+			return nil
+		},
 		Config: c,
 	}
 }
@@ -120,7 +131,7 @@ func AdmissionProjectorWebhook(c reconcilers.Config) *admission.Webhook {
 
 			// find matching service bindings
 			serviceBindings := &servicebindingv1beta1.ServiceBindingList{}
-			if err := c.List(ctx, serviceBindings, client.InNamespace(r.Namespace), client.MatchingFields{workloadRefIndexKey: indexValue(r.Kind.Group, r.Kind.Kind)}); err != nil {
+			if err := c.List(ctx, serviceBindings, client.InNamespace(r.Namespace), client.MatchingFields{workloadRefIndexKey: workloadRefIndexValue(r.Kind.Group, r.Kind.Kind)}); err != nil {
 				// TODO handle error
 				return response
 			}
@@ -204,7 +215,8 @@ func TriggerReconciler(c reconcilers.Config, name string) *reconcilers.Aggregate
 		Reconciler: reconcilers.Sequence{
 			LoadServiceBindings(req),
 			TriggerGVKs(),
-			WebhookRules(),
+			InterceptGVKs(),
+			WebhookRules([]admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update, admissionregistrationv1.Delete}),
 		},
 		DesiredResource: func(ctx context.Context, resource *admissionregistrationv1.ValidatingWebhookConfiguration) (client.Object, error) {
 			if resource == nil || len(resource.Webhooks) != 1 {
@@ -243,6 +255,8 @@ func TriggerReconciler(c reconcilers.Config, name string) *reconcilers.Aggregate
 func TriggerWebhook(c reconcilers.Config, serviceBindingController controller.Controller) *admission.Webhook {
 	return &admission.Webhook{
 		Handler: admission.HandlerFunc(func(ctx context.Context, r admission.Request) admission.Response {
+			log := logr.FromContextOrDiscard(ctx)
+
 			response := admission.Response{
 				AdmissionResponse: admissionv1.AdmissionResponse{
 					UID:     r.UID,
@@ -265,7 +279,12 @@ func TriggerWebhook(c reconcilers.Config, serviceBindingController controller.Co
 				},
 			)
 			for _, nsn := range c.Tracker.Lookup(ctx, trackKey) {
-				queue.Add(reconcile.Request{NamespacedName: nsn})
+				req := reconcile.Request{NamespacedName: nsn}
+				log.V(2).Info("enqueue tracked request", "request", req, "for", trackKey, "dryRun", r.DryRun)
+				if !(r.DryRun != nil && *r.DryRun) {
+					// ignore dry run requests
+					queue.Add(req)
+				}
 			}
 
 			return response
@@ -304,8 +323,8 @@ func InterceptGVKs() reconcilers.SubReconciler {
 		Name: "InterceptGVKs",
 		Sync: func(ctx context.Context, _ client.Object) error {
 			serviceBindings := RetrieveServiceBindings(ctx)
+			gvks := RetrieveObservedGKVs(ctx)
 
-			gvks := []schema.GroupVersionKind{}
 			for i := range serviceBindings {
 				workload := serviceBindings[i].Spec.Workload
 				gvk := schema.FromAPIVersionAndKind(workload.APIVersion, workload.Kind)
@@ -316,16 +335,6 @@ func InterceptGVKs() reconcilers.SubReconciler {
 
 			return nil
 		},
-		Setup: func(ctx context.Context, mgr controllerruntime.Manager, bldr *builder.Builder) error {
-			if err := mgr.GetFieldIndexer().IndexField(ctx, &servicebindingv1beta1.ServiceBinding{}, workloadRefIndexKey, func(obj client.Object) []string {
-				serviceBinding := obj.(*servicebindingv1beta1.ServiceBinding)
-				gvk := schema.FromAPIVersionAndKind(serviceBinding.Spec.Workload.APIVersion, serviceBinding.Spec.Workload.Kind)
-				return []string{indexValue(gvk.Group, gvk.Kind)}
-			}); err != nil {
-				return err
-			}
-			return nil
-		},
 	}
 }
 
@@ -334,8 +343,8 @@ func TriggerGVKs() reconcilers.SubReconciler {
 		Name: "TriggerGVKs",
 		Sync: func(ctx context.Context, _ client.Object) error {
 			serviceBindings := RetrieveServiceBindings(ctx)
+			gvks := RetrieveObservedGKVs(ctx)
 
-			gvks := []schema.GroupVersionKind{}
 			for i := range serviceBindings {
 				service := serviceBindings[i].Spec.Service
 				gvk := schema.FromAPIVersionAndKind(service.APIVersion, service.Kind)
@@ -350,20 +359,10 @@ func TriggerGVKs() reconcilers.SubReconciler {
 
 			return nil
 		},
-		Setup: func(ctx context.Context, mgr controllerruntime.Manager, bldr *builder.Builder) error {
-			if err := mgr.GetFieldIndexer().IndexField(ctx, &servicebindingv1beta1.ServiceBinding{}, serviceRefIndexKey, func(obj client.Object) []string {
-				serviceBinding := obj.(*servicebindingv1beta1.ServiceBinding)
-				gvk := schema.FromAPIVersionAndKind(serviceBinding.Spec.Service.APIVersion, serviceBinding.Spec.Service.Kind)
-				return []string{gvk.Group, gvk.Kind}
-			}); err != nil {
-				return err
-			}
-			return nil
-		},
 	}
 }
 
-func WebhookRules() reconcilers.SubReconciler {
+func WebhookRules(operations []admissionregistrationv1.OperationType) reconcilers.SubReconciler {
 	return &reconcilers.SyncReconciler{
 		Name: "WebhookRules",
 		Sync: func(ctx context.Context, _ client.Object) error {
@@ -397,10 +396,7 @@ func WebhookRules() reconcilers.SubReconciler {
 				}
 
 				rules = append(rules, admissionregistrationv1.RuleWithOperations{
-					Operations: []admissionregistrationv1.OperationType{
-						admissionregistrationv1.Create,
-						admissionregistrationv1.Update,
-					},
+					Operations: operations,
 					Rule: admissionregistrationv1.Rule{
 						APIGroups:   []string{group},
 						APIVersions: []string{"*"},
@@ -458,9 +454,8 @@ func RetrieveWebhookRules(ctx context.Context) []admissionregistrationv1.RuleWit
 	return nil
 }
 
-const serviceRefIndexKey = ".metadata.serviceRef"
 const workloadRefIndexKey = ".metadata.workloadRef"
 
-func indexValue(group, kind string) string {
+func workloadRefIndexValue(group, kind string) string {
 	return schema.GroupKind{Group: group, Kind: kind}.String()
 }

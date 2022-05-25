@@ -5,7 +5,7 @@ go 1.17
 require (
 	dies.dev v0.4.0
 	github.com/google/go-cmp v0.5.8
-	github.com/vmware-labs/reconciler-runtime v0.5.1-0.20220524120927-6ce5e532ef15
+	github.com/vmware-labs/reconciler-runtime v0.5.1-0.20220525000555-2a473ffd8431
 	gomodules.xyz/jsonpatch/v2 v2.2.0
 	k8s.io/api v0.24.0
 	k8s.io/apimachinery v0.24.0
