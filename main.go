@@ -35,6 +35,7 @@ import (
 
 	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 	"github.com/scothis/servicebinding-runtime/controllers"
+	"github.com/scothis/servicebinding-runtime/rbac"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -84,6 +85,7 @@ func main() {
 
 	ctx := ctrl.SetupSignalHandler()
 	config := reconcilers.NewConfig(mgr, &servicebindingv1beta1.ServiceBinding{}, syncPeriod)
+	accessChecker := rbac.NewAccessChecker(config, 5*time.Minute)
 
 	serviceBindingController, err := controllers.ServiceBindingReconciler(
 		config,
@@ -105,6 +107,7 @@ func main() {
 		config,
 		// TODO inject from env
 		"servicebinding-runtime-admission-projector",
+		accessChecker.WithVerb("update"),
 	).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AdmissionProjector")
 		os.Exit(1)
@@ -115,6 +118,7 @@ func main() {
 		config,
 		// TODO inject from env
 		"servicebinding-runtime-trigger",
+		accessChecker.WithVerb("get"),
 	).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Trigger")
 		os.Exit(1)

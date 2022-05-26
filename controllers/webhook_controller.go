@@ -46,6 +46,7 @@ import (
 
 	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 	"github.com/scothis/servicebinding-runtime/projector"
+	"github.com/scothis/servicebinding-runtime/rbac"
 	"github.com/scothis/servicebinding-runtime/resolver"
 )
 
@@ -53,7 +54,7 @@ import (
 //+kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create;update;patch;delete
 
 // AdmissionProjector reconciles a MutatingWebhookConfiguration object
-func AdmissionProjectorReconciler(c reconcilers.Config, name string) *reconcilers.AggregateReconciler {
+func AdmissionProjectorReconciler(c reconcilers.Config, name string, accessChecker rbac.AccessChecker) *reconcilers.AggregateReconciler {
 	req := reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Name: name,
@@ -67,7 +68,7 @@ func AdmissionProjectorReconciler(c reconcilers.Config, name string) *reconciler
 		Reconciler: reconcilers.Sequence{
 			LoadServiceBindings(req),
 			InterceptGVKs(),
-			WebhookRules([]admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update}),
+			WebhookRules([]admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update}, accessChecker),
 		},
 		DesiredResource: func(ctx context.Context, resource *admissionregistrationv1.MutatingWebhookConfiguration) (client.Object, error) {
 			if resource == nil || len(resource.Webhooks) != 1 {
@@ -199,7 +200,7 @@ func AdmissionProjectorWebhook(c reconcilers.Config) *admission.Webhook {
 //+kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create;update;patch;delete
 
 // TriggerReconciler reconciles a ValidatingWebhookConfiguration object
-func TriggerReconciler(c reconcilers.Config, name string) *reconcilers.AggregateReconciler {
+func TriggerReconciler(c reconcilers.Config, name string, accessChecker rbac.AccessChecker) *reconcilers.AggregateReconciler {
 	req := reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Name: name,
@@ -214,7 +215,7 @@ func TriggerReconciler(c reconcilers.Config, name string) *reconcilers.Aggregate
 			LoadServiceBindings(req),
 			TriggerGVKs(),
 			InterceptGVKs(),
-			WebhookRules([]admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update, admissionregistrationv1.Delete}),
+			WebhookRules([]admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update, admissionregistrationv1.Delete}, accessChecker),
 		},
 		DesiredResource: func(ctx context.Context, resource *admissionregistrationv1.ValidatingWebhookConfiguration) (client.Object, error) {
 			if resource == nil || len(resource.Webhooks) != 1 {
@@ -360,10 +361,11 @@ func TriggerGVKs() reconcilers.SubReconciler {
 	}
 }
 
-func WebhookRules(operations []admissionregistrationv1.OperationType) reconcilers.SubReconciler {
+func WebhookRules(operations []admissionregistrationv1.OperationType, accessChecker rbac.AccessChecker) reconcilers.SubReconciler {
 	return &reconcilers.SyncReconciler{
 		Name: "WebhookRules",
 		Sync: func(ctx context.Context, _ client.Object) error {
+			log := logr.FromContextOrDiscard(ctx)
 			c := reconcilers.RetrieveConfigOrDie(ctx)
 
 			// dedup gvks as gvrs
@@ -391,6 +393,18 @@ func WebhookRules(operations []admissionregistrationv1.OperationType) reconciler
 				resources := sets.NewString()
 				for resource := range groupResources[group] {
 					resources.Insert(resource)
+				}
+
+				// check that we have permission to interact with these resources. Admission webhooks bypass RBAC
+				for _, resource := range resources.List() {
+					if !accessChecker.CanI(ctx, group, resource) {
+						log.Info("ignoring resource, access denied", "group", group, "resource", resource)
+						resources.Delete(resource)
+					}
+				}
+
+				if resources.Len() == 0 {
+					continue
 				}
 
 				rules = append(rules, admissionregistrationv1.RuleWithOperations{

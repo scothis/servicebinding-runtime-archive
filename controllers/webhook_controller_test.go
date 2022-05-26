@@ -24,6 +24,7 @@ import (
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	rtesting "github.com/vmware-labs/reconciler-runtime/testing"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,6 +39,7 @@ import (
 	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 	"github.com/scothis/servicebinding-runtime/controllers"
 	dieservicebindingv1beta1 "github.com/scothis/servicebinding-runtime/dies/v1beta1"
+	"github.com/scothis/servicebinding-runtime/rbac"
 )
 
 func TestAdmissionProjectorReconciler(t *testing.T) {
@@ -99,6 +101,12 @@ func TestAdmissionProjectorReconciler(t *testing.T) {
 			webhook,
 			serviceBinding,
 		},
+		WithReactors: []rtesting.ReactionFunc{
+			allowSelfSubjectAccessReviewFor("apps", "deployments", "update"),
+		},
+		ExpectCreates: []client.Object{
+			selfSubjectAccessReviewFor("apps", "deployments", "update"),
+		},
 	}, {
 		Name: "update",
 		Key:  key,
@@ -109,8 +117,14 @@ func TestAdmissionProjectorReconciler(t *testing.T) {
 				}),
 			serviceBinding,
 		},
+		WithReactors: []rtesting.ReactionFunc{
+			allowSelfSubjectAccessReviewFor("apps", "deployments", "update"),
+		},
 		ExpectEvents: []rtesting.Event{
 			rtesting.NewEvent(webhook, scheme, corev1.EventTypeNormal, "Updated", "Updated MutatingWebhookConfiguration %q", name),
+		},
+		ExpectCreates: []client.Object{
+			selfSubjectAccessReviewFor("apps", "deployments", "update"),
 		},
 		ExpectUpdates: []client.Object{
 			webhook,
@@ -135,12 +149,16 @@ func TestAdmissionProjectorReconciler(t *testing.T) {
 				Webhooks(),
 			serviceBinding,
 		},
+		ExpectCreates: []client.Object{
+			selfSubjectAccessReviewFor("apps", "deployments", "update"),
+		},
 	}}
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.ReconcilerTestCase, c reconcilers.Config) reconcile.Reconciler {
 		restMapper := c.RESTMapper().(*meta.DefaultRESTMapper)
 		restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, meta.RESTScopeNamespace)
-		return controllers.AdmissionProjectorReconciler(c, name)
+		accessChecker := rbac.NewAccessChecker(c, 0).WithVerb("update")
+		return controllers.AdmissionProjectorReconciler(c, name, accessChecker)
 	})
 }
 
@@ -213,6 +231,14 @@ func TestTriggerReconciler(t *testing.T) {
 			webhook,
 			serviceBinding,
 		},
+		WithReactors: []rtesting.ReactionFunc{
+			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+			allowSelfSubjectAccessReviewFor("example", "myservices", "get"),
+		},
+		ExpectCreates: []client.Object{
+			selfSubjectAccessReviewFor("apps", "deployments", "get"),
+			selfSubjectAccessReviewFor("example", "myservices", "get"),
+		},
 	}, {
 		Name: "update",
 		Key:  key,
@@ -223,8 +249,16 @@ func TestTriggerReconciler(t *testing.T) {
 				}),
 			serviceBinding,
 		},
+		WithReactors: []rtesting.ReactionFunc{
+			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+			allowSelfSubjectAccessReviewFor("example", "myservices", "get"),
+		},
 		ExpectEvents: []rtesting.Event{
 			rtesting.NewEvent(webhook, scheme, corev1.EventTypeNormal, "Updated", "Updated ValidatingWebhookConfiguration %q", name),
+		},
+		ExpectCreates: []client.Object{
+			selfSubjectAccessReviewFor("apps", "deployments", "get"),
+			selfSubjectAccessReviewFor("example", "myservices", "get"),
 		},
 		ExpectUpdates: []client.Object{
 			webhook,
@@ -249,13 +283,22 @@ func TestTriggerReconciler(t *testing.T) {
 				Webhooks(),
 			serviceBinding,
 		},
+		WithReactors: []rtesting.ReactionFunc{
+			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+			allowSelfSubjectAccessReviewFor("example", "myservices", "get"),
+		},
+		ExpectCreates: []client.Object{
+			selfSubjectAccessReviewFor("apps", "deployments", "get"),
+			selfSubjectAccessReviewFor("example", "myservices", "get"),
+		},
 	}}
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.ReconcilerTestCase, c reconcilers.Config) reconcile.Reconciler {
 		restMapper := c.RESTMapper().(*meta.DefaultRESTMapper)
 		restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, meta.RESTScopeNamespace)
 		restMapper.Add(schema.GroupVersionKind{Group: "example", Version: "v1", Kind: "MyService"}, meta.RESTScopeNamespace)
-		return controllers.TriggerReconciler(c, name)
+		accessChecker := rbac.NewAccessChecker(c, 0).WithVerb("get")
+		return controllers.TriggerReconciler(c, name, accessChecker)
 	})
 }
 
@@ -486,6 +529,9 @@ func TestWebhookRules(t *testing.T) {
 				{Group: "apps", Version: "v1", Kind: "Deployment"},
 			},
 		},
+		WithReactors: []rtesting.ReactionFunc{
+			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+		},
 		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
 			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{
 				{
@@ -497,6 +543,9 @@ func TestWebhookRules(t *testing.T) {
 					},
 				},
 			},
+		},
+		ExpectCreates: []client.Object{
+			selfSubjectAccessReviewFor("apps", "deployments", "get"),
 		},
 	}, {
 		Name:     "dedup versions",
@@ -507,6 +556,9 @@ func TestWebhookRules(t *testing.T) {
 				{Group: "apps", Version: "v1beta1", Kind: "Deployment"},
 			},
 		},
+		WithReactors: []rtesting.ReactionFunc{
+			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+		},
 		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
 			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{
 				{
@@ -519,6 +571,9 @@ func TestWebhookRules(t *testing.T) {
 				},
 			},
 		},
+		ExpectCreates: []client.Object{
+			selfSubjectAccessReviewFor("apps", "deployments", "get"),
+		},
 	}, {
 		Name:     "merge resources of same group",
 		Resource: webhook,
@@ -527,6 +582,10 @@ func TestWebhookRules(t *testing.T) {
 				{Group: "apps", Version: "v1", Kind: "StatefulSet"},
 				{Group: "apps", Version: "v1", Kind: "Deployment"},
 			},
+		},
+		WithReactors: []rtesting.ReactionFunc{
+			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+			allowSelfSubjectAccessReviewFor("apps", "statefulsets", "get"),
 		},
 		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
 			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{
@@ -540,6 +599,10 @@ func TestWebhookRules(t *testing.T) {
 				},
 			},
 		},
+		ExpectCreates: []client.Object{
+			selfSubjectAccessReviewFor("apps", "deployments", "get"),
+			selfSubjectAccessReviewFor("apps", "statefulsets", "get"),
+		},
 	}, {
 		Name:     "preserve resources of different group",
 		Resource: webhook,
@@ -548,6 +611,10 @@ func TestWebhookRules(t *testing.T) {
 				{Group: "batch", Version: "v1", Kind: "Job"},
 				{Group: "apps", Version: "v1", Kind: "Deployment"},
 			},
+		},
+		WithReactors: []rtesting.ReactionFunc{
+			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+			allowSelfSubjectAccessReviewFor("batch", "jobs", "get"),
 		},
 		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
 			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{
@@ -569,6 +636,10 @@ func TestWebhookRules(t *testing.T) {
 				},
 			},
 		},
+		ExpectCreates: []client.Object{
+			selfSubjectAccessReviewFor("apps", "deployments", "get"),
+			selfSubjectAccessReviewFor("batch", "jobs", "get"),
+		},
 	}, {
 		Name:     "error on unknown resource",
 		Resource: webhook,
@@ -578,6 +649,37 @@ func TestWebhookRules(t *testing.T) {
 			},
 		},
 		ShouldErr: true,
+	}, {
+		Name:     "drop denied resources",
+		Resource: webhook,
+		GivenStashedValues: map[reconcilers.StashKey]interface{}{
+			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+				{Group: "apps", Version: "v1", Kind: "Deployment"},
+			},
+		},
+		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{},
+		},
+		ExpectCreates: []client.Object{
+			selfSubjectAccessReviewFor("apps", "deployments", "get"),
+		},
+	}, {
+		Name:     "treat SelfSubjectAccessReview errors as denied",
+		Resource: webhook,
+		GivenStashedValues: map[reconcilers.StashKey]interface{}{
+			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+				{Group: "apps", Version: "v1", Kind: "Deployment"},
+			},
+		},
+		WithReactors: []rtesting.ReactionFunc{
+			rtesting.InduceFailure("create", "SelfSubjectAccessReview"),
+		},
+		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{},
+		},
+		ExpectCreates: []client.Object{
+			selfSubjectAccessReviewFor("apps", "deployments", "get"),
+		},
 	}}
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.SubReconcilerTestCase, c reconcilers.Config) reconcilers.SubReconciler {
@@ -586,7 +688,37 @@ func TestWebhookRules(t *testing.T) {
 		restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1beta1", Kind: "Deployment"}, meta.RESTScopeNamespace)
 		restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}, meta.RESTScopeNamespace)
 		restMapper.Add(schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}, meta.RESTScopeNamespace)
-
-		return controllers.WebhookRules(operations)
+		accessChecker := rbac.NewAccessChecker(c, 0).WithVerb("get")
+		return controllers.WebhookRules(operations, accessChecker)
 	})
+}
+
+func selfSubjectAccessReviewFor(group, resource, verb string) *authorizationv1.SelfSubjectAccessReview {
+	return &authorizationv1.SelfSubjectAccessReview{
+		Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
+				Group:    group,
+				Resource: resource,
+				Verb:     verb,
+			},
+		},
+	}
+}
+
+func allowSelfSubjectAccessReviewFor(group, resource, verb string) rtesting.ReactionFunc {
+	return func(action rtesting.Action) (handled bool, ret runtime.Object, err error) {
+		r := action.GetResource()
+		if r.Group != "authorization.k8s.io" || r.Resource != "SelfSubjectAccessReview" || r.Version != "v1" || action.GetVerb() != "create" {
+			// ignore, not creating a SelfSubjectAccessReview
+			return false, nil, nil
+		}
+		ssar := action.(rtesting.CreateAction).GetObject().(*authorizationv1.SelfSubjectAccessReview)
+		if ra := ssar.Spec.ResourceAttributes; ra != nil {
+			if ra.Group == group && ra.Resource == resource && ra.Verb == verb {
+				ssar.Status.Allowed = true
+				return true, ssar, nil
+			}
+		}
+		return false, nil, nil
+	}
 }
