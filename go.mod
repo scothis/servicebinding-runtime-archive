@@ -6,7 +6,7 @@ require (
 	dies.dev v0.4.0
 	github.com/go-logr/logr v1.2.3
 	github.com/google/go-cmp v0.5.8
-	github.com/vmware-labs/reconciler-runtime v0.5.1-0.20220525154226-f8e2ae6c520d
+	github.com/vmware-labs/reconciler-runtime v0.6.0
 	gomodules.xyz/jsonpatch/v2 v2.2.0
 	k8s.io/api v0.24.1
 	k8s.io/apimachinery v0.24.1
@@ -71,7 +71,7 @@ require (
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.0 // indirect
 	k8s.io/apiextensions-apiserver v0.24.0 // indirect
 	k8s.io/component-base v0.24.0 // indirect
 	k8s.io/klog/v2 v2.60.1 // indirect
