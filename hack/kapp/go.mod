@@ -1,6 +1,6 @@
 module github.com/scothis/servicebinding-runtime/hack/kapp
 
-go 1.17
+go 1.18
 
 require github.com/k14s/kapp v0.47.0
 

@@ -22,7 +22,7 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
 .PHONY: all
-all: build
+all: test
 
 ##@ General
 
@@ -46,6 +46,8 @@ help: ## Display this help.
 .PHONY: manifests
 manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	cat hack/boilerplate.yaml.txt > config/servicebinding-runtime.yaml
+	$(KUSTOMIZE) build config/default >> config/servicebinding-runtime.yaml
 
 .PHONY: generate
 generate: ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -54,7 +56,6 @@ generate: ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
-	go fmt ./...
 	$(GOIMPORTS) --local github.com/scothis/servicebinding-runtime -w .
 
 .PHONY: vet
@@ -65,29 +66,11 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet ## Run tests.
 	go test ./... -coverprofile cover.out
 
-##@ Build
-
-.PHONY: build
-build: generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go
-
-.PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go
-
 ##@ Deployment
-
-.PHONY: install
-install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KAPP) deploy -a $(KAPP_APP) -n $(KAPP_APP_NAMESPACE) -f <($(KUSTOMIZE) build config/crd)
-
-.PHONY: uninstall
-uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
-	$(KAPP) delete -a $(KAPP_APP) -n $(KAPP_APP_NAMESPACE)
 
 .PHONY: deploy
 deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(KAPP) deploy -a $(KAPP_APP) -n $(KAPP_APP_NAMESPACE) -c -f config/kapp -f <($(KUSTOMIZE) build config/default | $(KO) resolve -f -)
+	$(KAPP) deploy -a $(KAPP_APP) -n $(KAPP_APP_NAMESPACE) -c -f config/kapp -f <($(KO) resolve -f config/servicebinding-runtime.yaml)
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.

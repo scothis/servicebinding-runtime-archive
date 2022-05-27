@@ -36,7 +36,21 @@ updates:
   reviewers:
   - scothis
 - package-ecosystem: gomod
+  directory: "/hack/imgpkg"
+  schedule:
+    interval: daily
+  open-pull-requests-limit: 10
+  reviewers:
+  - scothis
+- package-ecosystem: gomod
   directory: "/hack/kapp"
+  schedule:
+    interval: daily
+  open-pull-requests-limit: 10
+  reviewers:
+  - scothis
+- package-ecosystem: gomod
+  directory: "/hack/kbld"
   schedule:
     interval: daily
   open-pull-requests-limit: 10

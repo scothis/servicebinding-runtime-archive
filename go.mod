@@ -1,6 +1,6 @@
 module github.com/scothis/servicebinding-runtime
 
-go 1.17
+go 1.18
 
 require (
 	dies.dev v0.4.0

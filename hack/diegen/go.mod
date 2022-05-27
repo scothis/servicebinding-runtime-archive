@@ -1,6 +1,6 @@
 module github.com/scothis/servicebinding-runtime/hack/controller-gen
 
-go 1.17
+go 1.18
 
 require dies.dev/diegen v0.4.0
 
