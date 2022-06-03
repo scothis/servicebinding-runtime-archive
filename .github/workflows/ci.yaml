@@ -30,6 +30,13 @@ jobs:
       run: make test
     - name: Report coverage
       uses: codecov/codecov-action@v3
+    - name: Disallow generated drift
+      run: |
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        git diff --exit-code .
 
   stage:
     name: Stage

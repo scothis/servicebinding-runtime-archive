@@ -63,15 +63,17 @@ kind: MutatingWebhookConfiguration
 metadata:
   name: admission-projector
   annotations:
-    cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
+    cert-manager.io/inject-ca-from: $(NAMESPACE)/$(CERTIFICATE_NAME)
     webhook.servicebinding.io/dynamic-rules: ""
 webhooks:
 - name: interceptor.servicebinding.io
   namespaceSelector:
     matchExpressions:
-    - key: control-plane
+    - key: kubernetes.io/metadata.name
       operator: NotIn
-      values: ["controller-manager"]
+      values:
+      - $(NAMESPACE)
+      - kube-system
   admissionReviewVersions: ["v1"]
   clientConfig:
     service:
@@ -88,15 +90,17 @@ kind: ValidatingWebhookConfiguration
 metadata:
   name: trigger
   annotations:
-    cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
+    cert-manager.io/inject-ca-from: $(NAMESPACE)/$(CERTIFICATE_NAME)
     webhook.servicebinding.io/dynamic-rules: ""
 webhooks:
 - name: trigger.servicebinding.io
   namespaceSelector:
     matchExpressions:
-    - key: control-plane
+    - key: kubernetes.io/metadata.name
       operator: NotIn
-      values: ["controller-manager"]
+      values:
+      - $(NAMESPACE)
+      - kube-system
   admissionReviewVersions: ["v1"]
   clientConfig:
     service:
