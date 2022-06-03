@@ -747,10 +747,11 @@ webhooks:
   name: interceptor.servicebinding.io
   namespaceSelector:
     matchExpressions:
-    - key: control-plane
+    - key: kubernetes.io/metadata.name
       operator: NotIn
       values:
-      - controller-manager
+      - servicebinding-runtime-system
+      - kube-system
   reinvocationPolicy: IfNeeded
   sideEffects: None
 ---
@@ -773,10 +774,11 @@ webhooks:
   name: trigger.servicebinding.io
   namespaceSelector:
     matchExpressions:
-    - key: control-plane
+    - key: kubernetes.io/metadata.name
       operator: NotIn
       values:
-      - controller-manager
+      - servicebinding-runtime-system
+      - kube-system
   reinvocationPolicy: Never
   sideEffects: None
 ---
