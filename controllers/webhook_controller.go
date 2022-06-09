@@ -139,6 +139,9 @@ func AdmissionProjectorWebhook(c reconcilers.Config) *admission.Webhook {
 			// check that bindings are for this workload
 			activeServiceBindings := []servicebindingv1beta1.ServiceBinding{}
 			for _, sb := range serviceBindings.Items {
+				if !sb.DeletionTimestamp.IsZero() {
+					continue
+				}
 				w := sb.Spec.Workload
 				if w.Name == r.Name {
 					activeServiceBindings = append(activeServiceBindings, sb)
