@@ -112,7 +112,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "AdmissionProjector")
 		os.Exit(1)
 	}
-	mgr.GetWebhookServer().Register("/interceptor", controllers.AdmissionProjectorWebhook(config))
+	mgr.GetWebhookServer().Register("/interceptor", controllers.AdmissionProjectorWebhook(config).Build())
 
 	if err = controllers.TriggerReconciler(
 		config,
@@ -123,7 +123,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Trigger")
 		os.Exit(1)
 	}
-	mgr.GetWebhookServer().Register("/trigger", controllers.TriggerWebhook(config, serviceBindingController))
+	mgr.GetWebhookServer().Register("/trigger", controllers.TriggerWebhook(config, serviceBindingController).Build())
 
 	//+kubebuilder:scaffold:builder
 

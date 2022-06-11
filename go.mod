@@ -2,12 +2,13 @@ module github.com/scothis/servicebinding-runtime
 
 go 1.18
 
+replace github.com/vmware-labs/reconciler-runtime => github.com/scothis/reconciler-runtime v0.4.1-0.20220611212241-88b6414ca885
+
 require (
 	dies.dev v0.4.0
 	github.com/go-logr/logr v1.2.3
 	github.com/google/go-cmp v0.5.8
 	github.com/vmware-labs/reconciler-runtime v0.6.0
-	gomodules.xyz/jsonpatch/v2 v2.2.0
 	k8s.io/api v0.24.1
 	k8s.io/apimachinery v0.24.1
 	k8s.io/client-go v0.24.1
@@ -67,6 +68,7 @@ require (
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
+	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
