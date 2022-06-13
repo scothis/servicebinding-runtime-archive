@@ -116,8 +116,6 @@ func AdmissionProjectorWebhook(c reconcilers.Config) *reconcilers.AdmissionWebho
 		Type: &unstructured.Unstructured{},
 		Reconciler: &reconcilers.SyncReconciler{
 			Sync: func(ctx context.Context, workload *unstructured.Unstructured) error {
-				log := logr.FromContextOrDiscard(ctx)
-
 				c := reconcilers.RetrieveConfigOrDie(ctx)
 				req := reconcilers.RetrieveAdmissionRequest(ctx)
 
@@ -141,7 +139,7 @@ func AdmissionProjectorWebhook(c reconcilers.Config) *reconcilers.AdmissionWebho
 					if w.Selector != nil {
 						selector, err := metav1.LabelSelectorAsSelector(w.Selector)
 						if err != nil {
-							return err
+							continue
 						}
 						if selector.Matches(labels.Set(workload.GetLabels())) {
 							activeServiceBindings = append(activeServiceBindings, sb)
@@ -149,8 +147,6 @@ func AdmissionProjectorWebhook(c reconcilers.Config) *reconcilers.AdmissionWebho
 						}
 					}
 				}
-
-				log.Info("found service bindings", "possible", len(serviceBindings.Items), "matching", len(activeServiceBindings))
 
 				// project active bindings into workload
 				projector := projector.New(resolver.New(c))
@@ -160,7 +156,6 @@ func AdmissionProjectorWebhook(c reconcilers.Config) *reconcilers.AdmissionWebho
 					if err := projector.Project(ctx, sb, workload); err != nil {
 						return err
 					}
-					log.Info("project servicebinding")
 				}
 
 				return nil
@@ -257,10 +252,11 @@ func TriggerWebhook(c reconcilers.Config, serviceBindingController controller.Co
 				for _, nsn := range c.Tracker.Lookup(ctx, trackKey) {
 					rr := reconcile.Request{NamespacedName: nsn}
 					log.V(2).Info("enqueue tracked request", "request", rr, "for", trackKey, "dryRun", req.DryRun)
-					if !(req.DryRun != nil && *req.DryRun) {
+					if req.DryRun != nil && *req.DryRun {
 						// ignore dry run requests
-						queue.Add(rr)
+						continue
 					}
+					queue.Add(rr)
 				}
 
 				return nil

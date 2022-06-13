@@ -2,13 +2,14 @@ module github.com/scothis/servicebinding-runtime
 
 go 1.18
 
-replace github.com/vmware-labs/reconciler-runtime => github.com/scothis/reconciler-runtime v0.4.1-0.20220611212241-88b6414ca885
+replace github.com/vmware-labs/reconciler-runtime => github.com/scothis/reconciler-runtime v0.4.1-0.20220613033501-84eaa06ea6cb
 
 require (
-	dies.dev v0.4.0
+	dies.dev v0.4.1-0.20220613033353-3f260fa5f4e4
 	github.com/go-logr/logr v1.2.3
 	github.com/google/go-cmp v0.5.8
 	github.com/vmware-labs/reconciler-runtime v0.6.0
+	gomodules.xyz/jsonpatch/v2 v2.2.0
 	k8s.io/api v0.24.1
 	k8s.io/apimachinery v0.24.1
 	k8s.io/client-go v0.24.1
@@ -68,14 +69,15 @@ require (
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
-	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
+	gomodules.xyz/jsonpatch/v3 v3.0.1 // indirect
+	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0 // indirect
-	k8s.io/apiextensions-apiserver v0.24.0 // indirect
-	k8s.io/component-base v0.24.0 // indirect
+	k8s.io/apiextensions-apiserver v0.24.1 // indirect
+	k8s.io/component-base v0.24.1 // indirect
 	k8s.io/klog/v2 v2.60.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20220328201542-3ee0da9b0b42 // indirect
 	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
