@@ -110,18 +110,18 @@ func AdmissionProjectorReconciler(c reconcilers.Config, name string, accessCheck
 	}
 }
 
-func AdmissionProjectorWebhook(c reconcilers.Config) *reconcilers.AdmissionWebhookHandler {
-	return &reconcilers.AdmissionWebhookHandler{
+func AdmissionProjectorWebhook(c reconcilers.Config) *reconcilers.AdmissionWebhookAdapter {
+	return &reconcilers.AdmissionWebhookAdapter{
 		Name: "AdmissionProjectorWebhook",
 		Type: &unstructured.Unstructured{},
 		Reconciler: &reconcilers.SyncReconciler{
 			Sync: func(ctx context.Context, workload *unstructured.Unstructured) error {
 				c := reconcilers.RetrieveConfigOrDie(ctx)
-				req := reconcilers.RetrieveAdmissionRequest(ctx)
 
 				// find matching service bindings
 				serviceBindings := &servicebindingv1beta1.ServiceBindingList{}
-				if err := c.List(ctx, serviceBindings, client.InNamespace(req.Namespace), client.MatchingFields{workloadRefIndexKey: workloadRefIndexValue(req.Kind.Group, req.Kind.Kind)}); err != nil {
+				gvk := schema.FromAPIVersionAndKind(workload.GetAPIVersion(), workload.GetKind())
+				if err := c.List(ctx, serviceBindings, client.InNamespace(workload.GetNamespace()), client.MatchingFields{workloadRefIndexKey: workloadRefIndexValue(gvk.Group, gvk.Kind)}); err != nil {
 					return err
 				}
 
@@ -131,13 +131,13 @@ func AdmissionProjectorWebhook(c reconcilers.Config) *reconcilers.AdmissionWebho
 					if !sb.DeletionTimestamp.IsZero() {
 						continue
 					}
-					w := sb.Spec.Workload
-					if w.Name == req.Name {
+					ref := sb.Spec.Workload
+					if ref.Name == workload.GetName() {
 						activeServiceBindings = append(activeServiceBindings, sb)
 						continue
 					}
-					if w.Selector != nil {
-						selector, err := metav1.LabelSelectorAsSelector(w.Selector)
+					if ref.Selector != nil {
+						selector, err := metav1.LabelSelectorAsSelector(ref.Selector)
 						if err != nil {
 							continue
 						}
@@ -220,12 +220,12 @@ func TriggerReconciler(c reconcilers.Config, name string, accessChecker rbac.Acc
 	}
 }
 
-func TriggerWebhook(c reconcilers.Config, serviceBindingController controller.Controller) *reconcilers.AdmissionWebhookHandler {
-	return &reconcilers.AdmissionWebhookHandler{
+func TriggerWebhook(c reconcilers.Config, serviceBindingController controller.Controller) *reconcilers.AdmissionWebhookAdapter {
+	return &reconcilers.AdmissionWebhookAdapter{
 		Name: "AdmissionProjectorWebhook",
 		Type: &unstructured.Unstructured{},
 		Reconciler: &reconcilers.SyncReconciler{
-			Sync: func(ctx context.Context, workload *unstructured.Unstructured) error {
+			Sync: func(ctx context.Context, trigger *unstructured.Unstructured) error {
 				log := logr.FromContextOrDiscard(ctx)
 				c := reconcilers.RetrieveConfigOrDie(ctx)
 				req := reconcilers.RetrieveAdmissionRequest(ctx)
@@ -239,14 +239,10 @@ func TriggerWebhook(c reconcilers.Config, serviceBindingController controller.Co
 				queue := queueValue.Interface().(workqueue.Interface)
 
 				trackKey := tracker.NewKey(
-					schema.GroupVersionKind{
-						Group:   req.Kind.Group,
-						Version: req.Kind.Version,
-						Kind:    req.Kind.Kind,
-					},
+					schema.FromAPIVersionAndKind(trigger.GetAPIVersion(), trigger.GetKind()),
 					types.NamespacedName{
-						Namespace: req.Namespace,
-						Name:      req.Name,
+						Namespace: trigger.GetNamespace(),
+						Name:      trigger.GetName(),
 					},
 				)
 				for _, nsn := range c.Tracker.Lookup(ctx, trackKey) {
