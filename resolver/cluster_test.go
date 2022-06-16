@@ -456,9 +456,9 @@ func TestClusterResolver_LookupWorkloads(t *testing.T) {
 						"apiVersion": "apps/v1",
 						"kind":       "Deployment",
 						"metadata": map[string]interface{}{
-							"creationTimestamp": nil,
 							"name":              "my-workload",
 							"namespace":         "my-namespace",
+							"creationTimestamp": "1970-01-01T00:00:01Z",
 							"resourceVersion":   "999",
 						},
 						"spec": map[string]interface{}{
@@ -504,9 +504,10 @@ func TestClusterResolver_LookupWorkloads(t *testing.T) {
 						"apiVersion": "workload.local/v1",
 						"kind":       "MyWorkload",
 						"metadata": map[string]interface{}{
-							"name":            "my-workload",
-							"namespace":       "my-namespace",
-							"resourceVersion": "999",
+							"name":              "my-workload",
+							"namespace":         "my-namespace",
+							"creationTimestamp": "1970-01-01T00:00:01Z",
+							"resourceVersion":   "999",
 						},
 					},
 				},
@@ -560,13 +561,13 @@ func TestClusterResolver_LookupWorkloads(t *testing.T) {
 						"apiVersion": "apps/v1",
 						"kind":       "Deployment",
 						"metadata": map[string]interface{}{
-							"creationTimestamp": nil,
-							"name":              "my-workload-1",
-							"namespace":         "my-namespace",
+							"name":      "my-workload-1",
+							"namespace": "my-namespace",
 							"labels": map[string]interface{}{
 								"app": "my",
 							},
-							"resourceVersion": "999",
+							"creationTimestamp": "1970-01-01T00:00:01Z",
+							"resourceVersion":   "999",
 						},
 						"spec": map[string]interface{}{
 							"selector": nil,
@@ -588,13 +589,13 @@ func TestClusterResolver_LookupWorkloads(t *testing.T) {
 						"apiVersion": "apps/v1",
 						"kind":       "Deployment",
 						"metadata": map[string]interface{}{
-							"creationTimestamp": nil,
-							"name":              "my-workload-2",
-							"namespace":         "my-namespace",
+							"name":      "my-workload-2",
+							"namespace": "my-namespace",
 							"labels": map[string]interface{}{
 								"app": "my",
 							},
-							"resourceVersion": "999",
+							"creationTimestamp": "1970-01-01T00:00:01Z",
+							"resourceVersion":   "999",
 						},
 						"spec": map[string]interface{}{
 							"selector": nil,
@@ -677,7 +678,8 @@ func TestClusterResolver_LookupWorkloads(t *testing.T) {
 							"labels": map[string]interface{}{
 								"app": "my",
 							},
-							"resourceVersion": "999",
+							"creationTimestamp": "1970-01-01T00:00:01Z",
+							"resourceVersion":   "999",
 						},
 					},
 				},
@@ -691,7 +693,8 @@ func TestClusterResolver_LookupWorkloads(t *testing.T) {
 							"labels": map[string]interface{}{
 								"app": "my",
 							},
-							"resourceVersion": "999",
+							"creationTimestamp": "1970-01-01T00:00:01Z",
+							"resourceVersion":   "999",
 						},
 					},
 				},

@@ -18,14 +18,11 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	"reflect"
 
 	"github.com/go-logr/logr"
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	"github.com/vmware-labs/reconciler-runtime/tracker"
-	"gomodules.xyz/jsonpatch/v2"
-	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,7 +39,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 	"github.com/scothis/servicebinding-runtime/projector"
@@ -114,88 +110,58 @@ func AdmissionProjectorReconciler(c reconcilers.Config, name string, accessCheck
 	}
 }
 
-func AdmissionProjectorWebhook(c reconcilers.Config) *admission.Webhook {
-	return &admission.Webhook{
-		Handler: admission.HandlerFunc(func(ctx context.Context, r admission.Request) admission.Response {
-			response := admission.Response{
-				AdmissionResponse: admissionv1.AdmissionResponse{
-					UID: r.UID,
-				},
-			}
+func AdmissionProjectorWebhook(c reconcilers.Config) *reconcilers.AdmissionWebhookAdapter {
+	return &reconcilers.AdmissionWebhookAdapter{
+		Name: "AdmissionProjectorWebhook",
+		Type: &unstructured.Unstructured{},
+		Reconciler: &reconcilers.SyncReconciler{
+			Sync: func(ctx context.Context, workload *unstructured.Unstructured) error {
+				c := reconcilers.RetrieveConfigOrDie(ctx)
 
-			workload := &unstructured.Unstructured{}
-			if err := json.Unmarshal(r.Object.Raw, workload); err != nil {
-				// TODO handle error
-				return response
-			}
-
-			// find matching service bindings
-			serviceBindings := &servicebindingv1beta1.ServiceBindingList{}
-			if err := c.List(ctx, serviceBindings, client.InNamespace(r.Namespace), client.MatchingFields{workloadRefIndexKey: workloadRefIndexValue(r.Kind.Group, r.Kind.Kind)}); err != nil {
-				// TODO handle error
-				return response
-			}
-
-			// check that bindings are for this workload
-			activeServiceBindings := []servicebindingv1beta1.ServiceBinding{}
-			for _, sb := range serviceBindings.Items {
-				if !sb.DeletionTimestamp.IsZero() {
-					continue
+				// find matching service bindings
+				serviceBindings := &servicebindingv1beta1.ServiceBindingList{}
+				gvk := schema.FromAPIVersionAndKind(workload.GetAPIVersion(), workload.GetKind())
+				if err := c.List(ctx, serviceBindings, client.InNamespace(workload.GetNamespace()), client.MatchingFields{workloadRefIndexKey: workloadRefIndexValue(gvk.Group, gvk.Kind)}); err != nil {
+					return err
 				}
-				w := sb.Spec.Workload
-				if w.Name == r.Name {
-					activeServiceBindings = append(activeServiceBindings, sb)
-					continue
-				}
-				if w.Selector != nil {
-					selector, err := metav1.LabelSelectorAsSelector(w.Selector)
-					if err != nil {
-						// TODO handle error
-						return response
+
+				// check that bindings are for this workload
+				activeServiceBindings := []servicebindingv1beta1.ServiceBinding{}
+				for _, sb := range serviceBindings.Items {
+					if !sb.DeletionTimestamp.IsZero() {
+						continue
 					}
-					if selector.Matches(labels.Set(workload.GetLabels())) {
+					ref := sb.Spec.Workload
+					if ref.Name == workload.GetName() {
 						activeServiceBindings = append(activeServiceBindings, sb)
 						continue
 					}
+					if ref.Selector != nil {
+						selector, err := metav1.LabelSelectorAsSelector(ref.Selector)
+						if err != nil {
+							continue
+						}
+						if selector.Matches(labels.Set(workload.GetLabels())) {
+							activeServiceBindings = append(activeServiceBindings, sb)
+							continue
+						}
+					}
 				}
-			}
 
-			// project active bindings into workload
-			projector := projector.New(resolver.New(c))
-			projectedWorkload := workload.DeepCopy()
-			for i := range activeServiceBindings {
-				sb := activeServiceBindings[i].DeepCopy()
-				sb.Default()
-				if err := projector.Project(ctx, sb, projectedWorkload); err != nil {
-					// TODO handle error
-					return response
+				// project active bindings into workload
+				projector := projector.New(resolver.New(c))
+				for i := range activeServiceBindings {
+					sb := activeServiceBindings[i].DeepCopy()
+					sb.Default()
+					if err := projector.Project(ctx, sb, workload); err != nil {
+						return err
+					}
 				}
-			}
 
-			if !equality.Semantic.DeepEqual(workload, projectedWorkload) {
-				// add patch to response
-
-				workloadBytes, err := json.Marshal(workload)
-				if err != nil {
-					// TODO handle error
-					return response
-				}
-				projectedWorkloadBytes, err := json.Marshal(projectedWorkload)
-				if err != nil {
-					// TODO handle error
-					return response
-				}
-				patch, err := jsonpatch.CreatePatch(workloadBytes, projectedWorkloadBytes)
-				if err != nil {
-					// TODO handle error
-					return response
-				}
-				response.Patches = patch
-			}
-
-			response.Allowed = true
-			return response
-		}),
+				return nil
+			},
+		},
+		Config: c,
 	}
 }
 
@@ -254,43 +220,45 @@ func TriggerReconciler(c reconcilers.Config, name string, accessChecker rbac.Acc
 	}
 }
 
-func TriggerWebhook(c reconcilers.Config, serviceBindingController controller.Controller) *admission.Webhook {
-	return &admission.Webhook{
-		Handler: admission.HandlerFunc(func(ctx context.Context, r admission.Request) admission.Response {
-			log := logr.FromContextOrDiscard(ctx)
+func TriggerWebhook(c reconcilers.Config, serviceBindingController controller.Controller) *reconcilers.AdmissionWebhookAdapter {
+	return &reconcilers.AdmissionWebhookAdapter{
+		Name: "AdmissionProjectorWebhook",
+		Type: &unstructured.Unstructured{},
+		Reconciler: &reconcilers.SyncReconciler{
+			Sync: func(ctx context.Context, trigger *unstructured.Unstructured) error {
+				log := logr.FromContextOrDiscard(ctx)
+				c := reconcilers.RetrieveConfigOrDie(ctx)
+				req := reconcilers.RetrieveAdmissionRequest(ctx)
 
-			response := admission.Response{
-				AdmissionResponse: admissionv1.AdmissionResponse{
-					UID:     r.UID,
-					Allowed: true,
-				},
-			}
-
-			// TODO find a better way to get at the queue, this is fragile and may break in any controller-runtime update
-			queue := reflect.ValueOf(serviceBindingController).Elem().FieldByName("Queue").Interface().(workqueue.Interface)
-
-			trackKey := tracker.NewKey(
-				schema.GroupVersionKind{
-					Group:   r.Kind.Group,
-					Version: r.Kind.Version,
-					Kind:    r.Kind.Kind,
-				},
-				types.NamespacedName{
-					Namespace: r.Namespace,
-					Name:      r.Name,
-				},
-			)
-			for _, nsn := range c.Tracker.Lookup(ctx, trackKey) {
-				req := reconcile.Request{NamespacedName: nsn}
-				log.V(2).Info("enqueue tracked request", "request", req, "for", trackKey, "dryRun", r.DryRun)
-				if !(r.DryRun != nil && *r.DryRun) {
-					// ignore dry run requests
-					queue.Add(req)
+				// TODO find a better way to get at the queue, this is fragile and may break in any controller-runtime update
+				queueValue := reflect.ValueOf(serviceBindingController).Elem().FieldByName("Queue")
+				if queueValue.IsNil() {
+					// queue is not populated yet
+					return nil
 				}
-			}
+				queue := queueValue.Interface().(workqueue.Interface)
 
-			return response
-		}),
+				trackKey := tracker.NewKey(
+					schema.FromAPIVersionAndKind(trigger.GetAPIVersion(), trigger.GetKind()),
+					types.NamespacedName{
+						Namespace: trigger.GetNamespace(),
+						Name:      trigger.GetName(),
+					},
+				)
+				for _, nsn := range c.Tracker.Lookup(ctx, trackKey) {
+					rr := reconcile.Request{NamespacedName: nsn}
+					log.V(2).Info("enqueue tracked request", "request", rr, "for", trackKey, "dryRun", req.DryRun)
+					if req.DryRun != nil && *req.DryRun {
+						// ignore dry run requests
+						continue
+					}
+					queue.Add(rr)
+				}
+
+				return nil
+			},
+		},
+		Config: c,
 	}
 }
 

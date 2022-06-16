@@ -17,12 +17,22 @@ limitations under the License.
 package controllers_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
+	"time"
 
+	dieadmissionv1 "dies.dev/apis/admission/v1"
 	dieadmissionregistrationv1 "dies.dev/apis/admissionregistration/v1"
+	dieappsv1 "dies.dev/apis/apps/v1"
+	diecorev1 "dies.dev/apis/core/v1"
 	diemetav1 "dies.dev/apis/meta/v1"
+	"github.com/go-logr/logr"
+	"github.com/google/go-cmp/cmp"
 	"github.com/vmware-labs/reconciler-runtime/reconcilers"
 	rtesting "github.com/vmware-labs/reconciler-runtime/testing"
+	"gomodules.xyz/jsonpatch/v2"
+	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -33,8 +43,14 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	servicebindingv1beta1 "github.com/scothis/servicebinding-runtime/apis/v1beta1"
 	"github.com/scothis/servicebinding-runtime/controllers"
@@ -159,6 +175,321 @@ func TestAdmissionProjectorReconciler(t *testing.T) {
 		restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, meta.RESTScopeNamespace)
 		accessChecker := rbac.NewAccessChecker(c, 0).WithVerb("update")
 		return controllers.AdmissionProjectorReconciler(c, name, accessChecker)
+	})
+}
+
+func TestAdmissionProjectorWebhook(t *testing.T) {
+	namespace := "test-namespace"
+	name := "my-workload"
+	secret := "my-binding"
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(servicebindingv1beta1.AddToScheme(scheme))
+
+	requestUID := types.UID("9deefaa1-2c90-4f40-9c7b-3f5c1fd75dde")
+	bindingUID := types.UID("89deaf20-7bab-4610-81db-6f8c3f7fa51d")
+
+	workload := dieappsv1.DeploymentBlank.
+		APIVersion("apps/v1").
+		Kind("Deployment").
+		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+			d.Namespace(namespace)
+			d.Name(name)
+		}).
+		SpecDie(func(d *dieappsv1.DeploymentSpecDie) {
+			d.TemplateDie(func(d *diecorev1.PodTemplateSpecDie) {
+				d.SpecDie(func(d *diecorev1.PodSpecDie) {
+					d.ContainerDie("workload", func(d *diecorev1.ContainerDie) {
+						d.Image("scratch")
+					})
+				})
+			})
+		})
+	serviceBinding := dieservicebindingv1beta1.ServiceBindingBlank.
+		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+			d.Namespace(namespace)
+			d.Name(name)
+			d.UID(bindingUID)
+		}).
+		StatusDie(func(d *dieservicebindingv1beta1.ServiceBindingStatusDie) {
+			d.BindingDie(func(d *dieservicebindingv1beta1.ServiceBindingSecretReferenceDie) {
+				d.Name(secret)
+			})
+		})
+
+	request := dieadmissionv1.AdmissionRequestBlank.
+		UID(requestUID).
+		Operation(admissionv1.Create)
+	response := dieadmissionv1.AdmissionResponseBlank.
+		Allowed(true)
+
+	wts := rtesting.AdmissionWebhookTests{
+		"no binding targeting workload": {
+			GivenObjects: []client.Object{
+				serviceBinding.
+					MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+						d.Name(fmt.Sprintf("%s-named", name))
+					}).
+					SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+						d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+							d.Name("some-other-workload")
+						})
+					}),
+				serviceBinding.
+					MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+						d.Name(fmt.Sprintf("%s-selected", name))
+					}).
+					SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+						d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+							d.SelectorDie(func(d *diemetav1.LabelSelectorDie) {
+								d.AddMatchLabel("some-other-workload", "true")
+							})
+						})
+					}),
+			},
+			Request: &admission.Request{
+				AdmissionRequest: request.
+					Object(workload.DieReleaseRawExtension()).
+					DieRelease(),
+			},
+			ExpectedResponse: admission.Response{
+				AdmissionResponse: response.DieRelease(),
+			},
+		},
+		"binding already projected": {
+			GivenObjects: []client.Object{
+				serviceBinding.SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+					d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+						d.APIVersion("apps/v1")
+						d.Kind("Deployment")
+						d.Name(name)
+					})
+				}),
+			},
+			Request: &admission.Request{
+				AdmissionRequest: request.
+					Object(
+						workload.
+							SpecDie(func(d *dieappsv1.DeploymentSpecDie) {
+								d.TemplateDie(func(d *diecorev1.PodTemplateSpecDie) {
+									d.MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+										d.AddAnnotation(fmt.Sprintf("projector.servicebinding.io/secret-%s", bindingUID), secret)
+									})
+									d.SpecDie(func(d *diecorev1.PodSpecDie) {
+										d.ContainerDie("workload", func(d *diecorev1.ContainerDie) {
+											d.EnvDie("SERVICE_BINDING_ROOT", func(d *diecorev1.EnvVarDie) {
+												d.Value("/bindings")
+											})
+											d.VolumeMountDie(fmt.Sprintf("servicebinding-%s", bindingUID), func(d *diecorev1.VolumeMountDie) {
+												d.MountPath(fmt.Sprintf("/bindings/%s", name))
+												d.ReadOnly(true)
+											})
+										})
+										d.VolumeDie(fmt.Sprintf("servicebinding-%s", bindingUID), func(d *diecorev1.VolumeDie) {
+											d.ProjectedDie(func(d *diecorev1.ProjectedVolumeSourceDie) {
+												d.SourcesDie(
+													diecorev1.VolumeProjectionBlank.SecretDie(func(d *diecorev1.SecretProjectionDie) {
+														d.LocalObjectReference(corev1.LocalObjectReference{
+															Name: secret,
+														})
+													}),
+												)
+											})
+										})
+									})
+								})
+							}).
+							DieReleaseRawExtension(),
+					).
+					DieRelease(),
+			},
+			ExpectedResponse: admission.Response{
+				AdmissionResponse: response.DieRelease(),
+			},
+		},
+		"binding projected by name": {
+			GivenObjects: []client.Object{
+				serviceBinding.SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+					d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+						d.APIVersion("apps/v1")
+						d.Kind("Deployment")
+						d.Name(name)
+					})
+				}),
+			},
+			Request: &admission.Request{
+				AdmissionRequest: request.
+					Object(workload.DieReleaseRawExtension()).
+					DieRelease(),
+			},
+			ExpectedResponse: admission.Response{
+				AdmissionResponse: response.DieRelease(),
+				Patches: []jsonpatch.Operation{
+					{
+						Operation: "add",
+						Path:      "/spec/template/metadata/annotations",
+						Value: map[string]interface{}{
+							fmt.Sprintf("projector.servicebinding.io/secret-%s", bindingUID): secret,
+						},
+					},
+					{
+						Operation: "add",
+						Path:      "/spec/template/spec/containers/0/env",
+						Value: []interface{}{
+							map[string]interface{}{
+								"name":  "SERVICE_BINDING_ROOT",
+								"value": "/bindings",
+							},
+						},
+					},
+					{
+						Operation: "add",
+						Path:      "/spec/template/spec/containers/0/volumeMounts",
+						Value: []interface{}{
+							map[string]interface{}{
+								"name":      fmt.Sprintf("servicebinding-%s", bindingUID),
+								"mountPath": "/bindings/my-workload",
+								"readOnly":  true,
+							},
+						},
+					},
+					{
+						Operation: "add",
+						Path:      "/spec/template/spec/volumes",
+						Value: []interface{}{
+							map[string]interface{}{
+								"name": fmt.Sprintf("servicebinding-%s", bindingUID),
+								"projected": map[string]interface{}{
+									"sources": []interface{}{
+										map[string]interface{}{
+											"secret": map[string]interface{}{
+												"name": secret,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"binding projected by selector": {
+			GivenObjects: []client.Object{
+				serviceBinding.SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+					d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+						d.APIVersion("apps/v1")
+						d.Kind("Deployment")
+						d.Selector(&metav1.LabelSelector{})
+					})
+				}),
+			},
+			Request: &admission.Request{
+				AdmissionRequest: request.
+					Object(workload.DieReleaseRawExtension()).
+					DieRelease(),
+			},
+			ExpectedResponse: admission.Response{
+				AdmissionResponse: response.DieRelease(),
+				Patches: []jsonpatch.Operation{
+					{
+						Operation: "add",
+						Path:      "/spec/template/metadata/annotations",
+						Value: map[string]interface{}{
+							fmt.Sprintf("projector.servicebinding.io/secret-%s", bindingUID): secret,
+						},
+					},
+					{
+						Operation: "add",
+						Path:      "/spec/template/spec/containers/0/env",
+						Value: []interface{}{
+							map[string]interface{}{
+								"name":  "SERVICE_BINDING_ROOT",
+								"value": "/bindings",
+							},
+						},
+					},
+					{
+						Operation: "add",
+						Path:      "/spec/template/spec/containers/0/volumeMounts",
+						Value: []interface{}{
+							map[string]interface{}{
+								"name":      fmt.Sprintf("servicebinding-%s", bindingUID),
+								"mountPath": "/bindings/my-workload",
+								"readOnly":  true,
+							},
+						},
+					},
+					{
+						Operation: "add",
+						Path:      "/spec/template/spec/volumes",
+						Value: []interface{}{
+							map[string]interface{}{
+								"name": fmt.Sprintf("servicebinding-%s", bindingUID),
+								"projected": map[string]interface{}{
+									"sources": []interface{}{
+										map[string]interface{}{
+											"secret": map[string]interface{}{
+												"name": secret,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"ingore terminating bindings": {
+			GivenObjects: []client.Object{
+				serviceBinding.
+					MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+						now := metav1.Now()
+						d.DeletionTimestamp(&now)
+					}).
+					SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+						d.WorkloadDie(func(d *dieservicebindingv1beta1.ServiceBindingWorkloadReferenceDie) {
+							d.APIVersion("apps/v1")
+							d.Kind("Deployment")
+							d.Name(name)
+						})
+					}),
+			},
+			Request: &admission.Request{
+				AdmissionRequest: request.
+					Object(workload.DieReleaseRawExtension()).
+					DieRelease(),
+			},
+			ExpectedResponse: admission.Response{
+				AdmissionResponse: response.DieRelease(),
+			},
+		},
+		"error loading bindings": {
+			WithReactors: []rtesting.ReactionFunc{
+				rtesting.InduceFailure("list", "ServiceBindingList"),
+			},
+			Request: &admission.Request{
+				AdmissionRequest: request.
+					Object(workload.DieReleaseRawExtension()).
+					DieRelease(),
+			},
+			ExpectedResponse: admission.Response{
+				AdmissionResponse: response.
+					Allowed(false).
+					ResultDie(func(d *diemetav1.StatusDie) {
+						d.Code(500)
+						d.Message("inducing failure for list ServiceBindingList")
+					}).
+					DieRelease(),
+			},
+		},
+	}
+	wts.Run(t, scheme, func(t *testing.T, wtc *rtesting.AdmissionWebhookTestCase, c reconcilers.Config) *admission.Webhook {
+		restMapper := c.RESTMapper().(*meta.DefaultRESTMapper)
+		restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, meta.RESTScopeNamespace)
+		return controllers.AdmissionProjectorWebhook(c).Build()
 	})
 }
 
@@ -302,6 +633,116 @@ func TestTriggerReconciler(t *testing.T) {
 	})
 }
 
+func TestTriggerWebhook(t *testing.T) {
+	namespace := "test-namespace"
+	name := "my-workload"
+	bindingName := "my-binding"
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(servicebindingv1beta1.AddToScheme(scheme))
+
+	requestUID := types.UID("9deefaa1-2c90-4f40-9c7b-3f5c1fd75dde")
+
+	serviceBinding := dieservicebindingv1beta1.ServiceBindingBlank.
+		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+			d.Namespace(namespace)
+			d.Name(bindingName)
+		})
+
+	workload := dieappsv1.DeploymentBlank.
+		APIVersion("apps/v1").
+		Kind("Deployment").
+		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+			d.Namespace(namespace)
+			d.Name(name)
+		})
+
+	request := dieadmissionv1.AdmissionRequestBlank.
+		UID(requestUID).
+		Operation(admissionv1.Create)
+	response := dieadmissionv1.AdmissionResponseBlank.
+		Allowed(true)
+
+	wts := rtesting.AdmissionWebhookTests{
+		"no op, nil workqueue": {
+			Request: &admission.Request{
+				AdmissionRequest: request.
+					Object(workload.DieReleaseRawExtension()).
+					DieRelease(),
+			},
+			ExpectedResponse: admission.Response{
+				AdmissionResponse: response.DieRelease(),
+			},
+		},
+		"nothing to enqueue": {
+			Request: &admission.Request{
+				AdmissionRequest: request.
+					Object(workload.DieReleaseRawExtension()).
+					DieRelease(),
+			},
+			ExpectedResponse: admission.Response{
+				AdmissionResponse: response.DieRelease(),
+			},
+			Metadata: map[string]interface{}{
+				"queue":            workqueue.New(),
+				"expectedRequests": []reconcile.Request{},
+			},
+		},
+		"enqueue tracked": {
+			Request: &admission.Request{
+				AdmissionRequest: request.
+					Object(workload.DieReleaseRawExtension()).
+					DieRelease(),
+			},
+			ExpectedResponse: admission.Response{
+				AdmissionResponse: response.DieRelease(),
+			},
+			Metadata: map[string]interface{}{
+				"queue": workqueue.New(),
+				"expectedRequests": []reconcile.Request{
+					{NamespacedName: types.NamespacedName{Namespace: namespace, Name: bindingName}},
+				},
+			},
+			Prepare: func(t *testing.T, c reconcilers.Config, wtc *rtesting.AdmissionWebhookTestCase) error {
+				ctx := context.TODO()
+				c.Tracker.TrackChild(ctx, serviceBinding.DieReleasePtr(), workload.DieReleasePtr(), c.Scheme())
+				return nil
+			},
+			ExpectTracks: []rtesting.TrackRequest{
+				rtesting.NewTrackRequest(workload, serviceBinding, scheme),
+			},
+		},
+	}
+	wts.Run(t, scheme, func(t *testing.T, wtc *rtesting.AdmissionWebhookTestCase, c reconcilers.Config) *admission.Webhook {
+		if wtc.Metadata == nil {
+			wtc.Metadata = map[string]interface{}{}
+		}
+		wtc.CleanUp = func(t *testing.T, wtc *rtesting.AdmissionWebhookTestCase) error {
+			queue, ok := wtc.Metadata["queue"].(workqueue.Interface)
+			if !ok {
+				return nil
+			}
+			actualRequests := []reconcile.Request{}
+			for len(actualRequests) < queue.Len() {
+				request, _ := queue.Get()
+				actualRequests = append(actualRequests, request.(reconcile.Request))
+			}
+			expectedRequests := wtc.Metadata["expectedRequests"].([]reconcile.Request)
+			if diff := cmp.Diff(expectedRequests, actualRequests); diff != "" {
+				t.Errorf("enqueued request (-expected, +actual): %s", diff)
+			}
+			return nil
+		}
+
+		queue, _ := wtc.Metadata["queue"].(workqueue.Interface)
+		ctrl := &mockController{
+			Queue: queue,
+		}
+		return controllers.TriggerWebhook(c, ctrl).Build()
+	})
+}
+
 func TestLoadServiceBindings(t *testing.T) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -314,6 +755,7 @@ func TestLoadServiceBindings(t *testing.T) {
 			d.Namespace("my-namespace")
 			d.Name("my-binding")
 			d.ResourceVersion("999")
+			d.CreationTimestamp(metav1.NewTime(time.UnixMilli(1000)))
 		}).
 		SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
 			d.ServiceDie(func(d *dieservicebindingv1beta1.ServiceBindingServiceReferenceDie) {
@@ -721,4 +1163,26 @@ func allowSelfSubjectAccessReviewFor(group, resource, verb string) rtesting.Reac
 		}
 		return false, nil, nil
 	}
+}
+
+var _ controller.Controller = (*mockController)(nil)
+
+type mockController struct {
+	Queue workqueue.Interface
+}
+
+func (c *mockController) Reconcile(context.Context, reconcile.Request) (reconcile.Result, error) {
+	return reconcile.Result{}, nil
+}
+
+func (c *mockController) Watch(src source.Source, eventhandler handler.EventHandler, predicates ...predicate.Predicate) error {
+	return nil
+}
+
+func (c *mockController) Start(ctx context.Context) error {
+	return nil
+}
+
+func (c *mockController) GetLogger() logr.Logger {
+	return logr.Discard()
 }
