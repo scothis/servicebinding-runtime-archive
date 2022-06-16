@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	dieadmissionv1 "dies.dev/apis/admission/v1"
 	dieadmissionregistrationv1 "dies.dev/apis/admissionregistration/v1"
@@ -754,6 +755,7 @@ func TestLoadServiceBindings(t *testing.T) {
 			d.Namespace("my-namespace")
 			d.Name("my-binding")
 			d.ResourceVersion("999")
+			d.CreationTimestamp(metav1.NewTime(time.UnixMilli(1000)))
 		}).
 		SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
 			d.ServiceDie(func(d *dieservicebindingv1beta1.ServiceBindingServiceReferenceDie) {

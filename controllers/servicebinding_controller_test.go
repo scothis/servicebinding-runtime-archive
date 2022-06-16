@@ -19,6 +19,7 @@ package controllers_test
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	dieappsv1 "dies.dev/apis/apps/v1"
 	diecorev1 "dies.dev/apis/core/v1"
@@ -449,10 +450,11 @@ func TestResolveWorkload(t *testing.T) {
 		})
 
 	workload := dieappsv1.DeploymentBlank.
-		DieStamp(func(r *appsv1.Deployment) {
-			r.APIVersion = "apps/v1"
-			r.Kind = "Deployment"
-			r.ResourceVersion = "999"
+		APIVersion("apps/v1").
+		Kind("Deployment").
+		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
+			d.ResourceVersion("999")
+			d.CreationTimestamp(metav1.NewTime(time.UnixMilli(1000)))
 		})
 	workload1 := workload.
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
