@@ -74,6 +74,14 @@ func (d *ClusterWorkloadResourceMappingDie) DieFeedPtr(r *apisv1beta1.ClusterWor
 	return d.DieFeed(*r)
 }
 
+// DieFeedRawExtension returns the resource managed by the die as an raw extension.
+func (d *ClusterWorkloadResourceMappingDie) DieFeedRawExtension(raw runtime.RawExtension) *ClusterWorkloadResourceMappingDie {
+	b, _ := json.Marshal(raw)
+	r := apisv1beta1.ClusterWorkloadResourceMapping{}
+	_ = json.Unmarshal(b, &r)
+	return d.DieFeed(r)
+}
+
 // DieRelease returns the resource managed by the die.
 func (d *ClusterWorkloadResourceMappingDie) DieRelease() apisv1beta1.ClusterWorkloadResourceMapping {
 	if d.mutable {
@@ -95,6 +103,15 @@ func (d *ClusterWorkloadResourceMappingDie) DieReleaseUnstructured() runtime.Uns
 	return &unstructured.Unstructured{
 		Object: u,
 	}
+}
+
+// DieReleaseRawExtension returns the resource managed by the die as an raw extension.
+func (d *ClusterWorkloadResourceMappingDie) DieReleaseRawExtension() runtime.RawExtension {
+	r := d.DieReleasePtr()
+	b, _ := json.Marshal(r)
+	raw := runtime.RawExtension{}
+	_ = json.Unmarshal(b, &raw)
+	return raw
 }
 
 // DieStamp returns a new die with the resource passed to the callback function. The resource is mutable.
@@ -140,6 +157,20 @@ func (d *ClusterWorkloadResourceMappingDie) UnmarshalJSON(b []byte) error {
 	err := json.Unmarshal(b, r)
 	*d = *d.DieFeed(*r)
 	return err
+}
+
+// APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+func (d *ClusterWorkloadResourceMappingDie) APIVersion(v string) *ClusterWorkloadResourceMappingDie {
+	return d.DieStamp(func(r *apisv1beta1.ClusterWorkloadResourceMapping) {
+		r.APIVersion = v
+	})
+}
+
+// Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+func (d *ClusterWorkloadResourceMappingDie) Kind(v string) *ClusterWorkloadResourceMappingDie {
+	return d.DieStamp(func(r *apisv1beta1.ClusterWorkloadResourceMapping) {
+		r.Kind = v
+	})
 }
 
 // MetadataDie stamps the resource's ObjectMeta field with a mutable die.
@@ -203,6 +234,14 @@ func (d *ClusterWorkloadResourceMappingSpecDie) DieFeedPtr(r *apisv1beta1.Cluste
 	return d.DieFeed(*r)
 }
 
+// DieFeedRawExtension returns the resource managed by the die as an raw extension.
+func (d *ClusterWorkloadResourceMappingSpecDie) DieFeedRawExtension(raw runtime.RawExtension) *ClusterWorkloadResourceMappingSpecDie {
+	b, _ := json.Marshal(raw)
+	r := apisv1beta1.ClusterWorkloadResourceMappingSpec{}
+	_ = json.Unmarshal(b, &r)
+	return d.DieFeed(r)
+}
+
 // DieRelease returns the resource managed by the die.
 func (d *ClusterWorkloadResourceMappingSpecDie) DieRelease() apisv1beta1.ClusterWorkloadResourceMappingSpec {
 	if d.mutable {
@@ -215,6 +254,15 @@ func (d *ClusterWorkloadResourceMappingSpecDie) DieRelease() apisv1beta1.Cluster
 func (d *ClusterWorkloadResourceMappingSpecDie) DieReleasePtr() *apisv1beta1.ClusterWorkloadResourceMappingSpec {
 	r := d.DieRelease()
 	return &r
+}
+
+// DieReleaseRawExtension returns the resource managed by the die as an raw extension.
+func (d *ClusterWorkloadResourceMappingSpecDie) DieReleaseRawExtension() runtime.RawExtension {
+	r := d.DieReleasePtr()
+	b, _ := json.Marshal(r)
+	raw := runtime.RawExtension{}
+	_ = json.Unmarshal(b, &raw)
+	return raw
 }
 
 // DieStamp returns a new die with the resource passed to the callback function. The resource is mutable.
@@ -277,6 +325,14 @@ func (d *ClusterWorkloadResourceMappingTemplateDie) DieFeedPtr(r *apisv1beta1.Cl
 	return d.DieFeed(*r)
 }
 
+// DieFeedRawExtension returns the resource managed by the die as an raw extension.
+func (d *ClusterWorkloadResourceMappingTemplateDie) DieFeedRawExtension(raw runtime.RawExtension) *ClusterWorkloadResourceMappingTemplateDie {
+	b, _ := json.Marshal(raw)
+	r := apisv1beta1.ClusterWorkloadResourceMappingTemplate{}
+	_ = json.Unmarshal(b, &r)
+	return d.DieFeed(r)
+}
+
 // DieRelease returns the resource managed by the die.
 func (d *ClusterWorkloadResourceMappingTemplateDie) DieRelease() apisv1beta1.ClusterWorkloadResourceMappingTemplate {
 	if d.mutable {
@@ -289,6 +345,15 @@ func (d *ClusterWorkloadResourceMappingTemplateDie) DieRelease() apisv1beta1.Clu
 func (d *ClusterWorkloadResourceMappingTemplateDie) DieReleasePtr() *apisv1beta1.ClusterWorkloadResourceMappingTemplate {
 	r := d.DieRelease()
 	return &r
+}
+
+// DieReleaseRawExtension returns the resource managed by the die as an raw extension.
+func (d *ClusterWorkloadResourceMappingTemplateDie) DieReleaseRawExtension() runtime.RawExtension {
+	r := d.DieReleasePtr()
+	b, _ := json.Marshal(r)
+	raw := runtime.RawExtension{}
+	_ = json.Unmarshal(b, &raw)
+	return raw
 }
 
 // DieStamp returns a new die with the resource passed to the callback function. The resource is mutable.
@@ -372,6 +437,14 @@ func (d *ClusterWorkloadResourceMappingContainerDie) DieFeedPtr(r *apisv1beta1.C
 	return d.DieFeed(*r)
 }
 
+// DieFeedRawExtension returns the resource managed by the die as an raw extension.
+func (d *ClusterWorkloadResourceMappingContainerDie) DieFeedRawExtension(raw runtime.RawExtension) *ClusterWorkloadResourceMappingContainerDie {
+	b, _ := json.Marshal(raw)
+	r := apisv1beta1.ClusterWorkloadResourceMappingContainer{}
+	_ = json.Unmarshal(b, &r)
+	return d.DieFeed(r)
+}
+
 // DieRelease returns the resource managed by the die.
 func (d *ClusterWorkloadResourceMappingContainerDie) DieRelease() apisv1beta1.ClusterWorkloadResourceMappingContainer {
 	if d.mutable {
@@ -384,6 +457,15 @@ func (d *ClusterWorkloadResourceMappingContainerDie) DieRelease() apisv1beta1.Cl
 func (d *ClusterWorkloadResourceMappingContainerDie) DieReleasePtr() *apisv1beta1.ClusterWorkloadResourceMappingContainer {
 	r := d.DieRelease()
 	return &r
+}
+
+// DieReleaseRawExtension returns the resource managed by the die as an raw extension.
+func (d *ClusterWorkloadResourceMappingContainerDie) DieReleaseRawExtension() runtime.RawExtension {
+	r := d.DieReleasePtr()
+	b, _ := json.Marshal(r)
+	raw := runtime.RawExtension{}
+	_ = json.Unmarshal(b, &raw)
+	return raw
 }
 
 // DieStamp returns a new die with the resource passed to the callback function. The resource is mutable.
@@ -470,6 +552,14 @@ func (d *ServiceBindingDie) DieFeedPtr(r *apisv1beta1.ServiceBinding) *ServiceBi
 	return d.DieFeed(*r)
 }
 
+// DieFeedRawExtension returns the resource managed by the die as an raw extension.
+func (d *ServiceBindingDie) DieFeedRawExtension(raw runtime.RawExtension) *ServiceBindingDie {
+	b, _ := json.Marshal(raw)
+	r := apisv1beta1.ServiceBinding{}
+	_ = json.Unmarshal(b, &r)
+	return d.DieFeed(r)
+}
+
 // DieRelease returns the resource managed by the die.
 func (d *ServiceBindingDie) DieRelease() apisv1beta1.ServiceBinding {
 	if d.mutable {
@@ -491,6 +581,15 @@ func (d *ServiceBindingDie) DieReleaseUnstructured() runtime.Unstructured {
 	return &unstructured.Unstructured{
 		Object: u,
 	}
+}
+
+// DieReleaseRawExtension returns the resource managed by the die as an raw extension.
+func (d *ServiceBindingDie) DieReleaseRawExtension() runtime.RawExtension {
+	r := d.DieReleasePtr()
+	b, _ := json.Marshal(r)
+	raw := runtime.RawExtension{}
+	_ = json.Unmarshal(b, &raw)
+	return raw
 }
 
 // DieStamp returns a new die with the resource passed to the callback function. The resource is mutable.
@@ -536,6 +635,20 @@ func (d *ServiceBindingDie) UnmarshalJSON(b []byte) error {
 	err := json.Unmarshal(b, r)
 	*d = *d.DieFeed(*r)
 	return err
+}
+
+// APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+func (d *ServiceBindingDie) APIVersion(v string) *ServiceBindingDie {
+	return d.DieStamp(func(r *apisv1beta1.ServiceBinding) {
+		r.APIVersion = v
+	})
+}
+
+// Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+func (d *ServiceBindingDie) Kind(v string) *ServiceBindingDie {
+	return d.DieStamp(func(r *apisv1beta1.ServiceBinding) {
+		r.Kind = v
+	})
 }
 
 // MetadataDie stamps the resource's ObjectMeta field with a mutable die.
@@ -614,6 +727,14 @@ func (d *ServiceBindingSpecDie) DieFeedPtr(r *apisv1beta1.ServiceBindingSpec) *S
 	return d.DieFeed(*r)
 }
 
+// DieFeedRawExtension returns the resource managed by the die as an raw extension.
+func (d *ServiceBindingSpecDie) DieFeedRawExtension(raw runtime.RawExtension) *ServiceBindingSpecDie {
+	b, _ := json.Marshal(raw)
+	r := apisv1beta1.ServiceBindingSpec{}
+	_ = json.Unmarshal(b, &r)
+	return d.DieFeed(r)
+}
+
 // DieRelease returns the resource managed by the die.
 func (d *ServiceBindingSpecDie) DieRelease() apisv1beta1.ServiceBindingSpec {
 	if d.mutable {
@@ -626,6 +747,15 @@ func (d *ServiceBindingSpecDie) DieRelease() apisv1beta1.ServiceBindingSpec {
 func (d *ServiceBindingSpecDie) DieReleasePtr() *apisv1beta1.ServiceBindingSpec {
 	r := d.DieRelease()
 	return &r
+}
+
+// DieReleaseRawExtension returns the resource managed by the die as an raw extension.
+func (d *ServiceBindingSpecDie) DieReleaseRawExtension() runtime.RawExtension {
+	r := d.DieReleasePtr()
+	b, _ := json.Marshal(r)
+	raw := runtime.RawExtension{}
+	_ = json.Unmarshal(b, &raw)
+	return raw
 }
 
 // DieStamp returns a new die with the resource passed to the callback function. The resource is mutable.
@@ -723,6 +853,14 @@ func (d *ServiceBindingWorkloadReferenceDie) DieFeedPtr(r *apisv1beta1.ServiceBi
 	return d.DieFeed(*r)
 }
 
+// DieFeedRawExtension returns the resource managed by the die as an raw extension.
+func (d *ServiceBindingWorkloadReferenceDie) DieFeedRawExtension(raw runtime.RawExtension) *ServiceBindingWorkloadReferenceDie {
+	b, _ := json.Marshal(raw)
+	r := apisv1beta1.ServiceBindingWorkloadReference{}
+	_ = json.Unmarshal(b, &r)
+	return d.DieFeed(r)
+}
+
 // DieRelease returns the resource managed by the die.
 func (d *ServiceBindingWorkloadReferenceDie) DieRelease() apisv1beta1.ServiceBindingWorkloadReference {
 	if d.mutable {
@@ -735,6 +873,15 @@ func (d *ServiceBindingWorkloadReferenceDie) DieRelease() apisv1beta1.ServiceBin
 func (d *ServiceBindingWorkloadReferenceDie) DieReleasePtr() *apisv1beta1.ServiceBindingWorkloadReference {
 	r := d.DieRelease()
 	return &r
+}
+
+// DieReleaseRawExtension returns the resource managed by the die as an raw extension.
+func (d *ServiceBindingWorkloadReferenceDie) DieReleaseRawExtension() runtime.RawExtension {
+	r := d.DieReleasePtr()
+	b, _ := json.Marshal(r)
+	raw := runtime.RawExtension{}
+	_ = json.Unmarshal(b, &raw)
+	return raw
 }
 
 // DieStamp returns a new die with the resource passed to the callback function. The resource is mutable.
@@ -825,6 +972,14 @@ func (d *ServiceBindingServiceReferenceDie) DieFeedPtr(r *apisv1beta1.ServiceBin
 	return d.DieFeed(*r)
 }
 
+// DieFeedRawExtension returns the resource managed by the die as an raw extension.
+func (d *ServiceBindingServiceReferenceDie) DieFeedRawExtension(raw runtime.RawExtension) *ServiceBindingServiceReferenceDie {
+	b, _ := json.Marshal(raw)
+	r := apisv1beta1.ServiceBindingServiceReference{}
+	_ = json.Unmarshal(b, &r)
+	return d.DieFeed(r)
+}
+
 // DieRelease returns the resource managed by the die.
 func (d *ServiceBindingServiceReferenceDie) DieRelease() apisv1beta1.ServiceBindingServiceReference {
 	if d.mutable {
@@ -837,6 +992,15 @@ func (d *ServiceBindingServiceReferenceDie) DieRelease() apisv1beta1.ServiceBind
 func (d *ServiceBindingServiceReferenceDie) DieReleasePtr() *apisv1beta1.ServiceBindingServiceReference {
 	r := d.DieRelease()
 	return &r
+}
+
+// DieReleaseRawExtension returns the resource managed by the die as an raw extension.
+func (d *ServiceBindingServiceReferenceDie) DieReleaseRawExtension() runtime.RawExtension {
+	r := d.DieReleasePtr()
+	b, _ := json.Marshal(r)
+	raw := runtime.RawExtension{}
+	_ = json.Unmarshal(b, &raw)
+	return raw
 }
 
 // DieStamp returns a new die with the resource passed to the callback function. The resource is mutable.
@@ -913,6 +1077,14 @@ func (d *EnvMappingDie) DieFeedPtr(r *apisv1beta1.EnvMapping) *EnvMappingDie {
 	return d.DieFeed(*r)
 }
 
+// DieFeedRawExtension returns the resource managed by the die as an raw extension.
+func (d *EnvMappingDie) DieFeedRawExtension(raw runtime.RawExtension) *EnvMappingDie {
+	b, _ := json.Marshal(raw)
+	r := apisv1beta1.EnvMapping{}
+	_ = json.Unmarshal(b, &r)
+	return d.DieFeed(r)
+}
+
 // DieRelease returns the resource managed by the die.
 func (d *EnvMappingDie) DieRelease() apisv1beta1.EnvMapping {
 	if d.mutable {
@@ -925,6 +1097,15 @@ func (d *EnvMappingDie) DieRelease() apisv1beta1.EnvMapping {
 func (d *EnvMappingDie) DieReleasePtr() *apisv1beta1.EnvMapping {
 	r := d.DieRelease()
 	return &r
+}
+
+// DieReleaseRawExtension returns the resource managed by the die as an raw extension.
+func (d *EnvMappingDie) DieReleaseRawExtension() runtime.RawExtension {
+	r := d.DieReleasePtr()
+	b, _ := json.Marshal(r)
+	raw := runtime.RawExtension{}
+	_ = json.Unmarshal(b, &raw)
+	return raw
 }
 
 // DieStamp returns a new die with the resource passed to the callback function. The resource is mutable.
@@ -994,6 +1175,14 @@ func (d *ServiceBindingStatusDie) DieFeedPtr(r *apisv1beta1.ServiceBindingStatus
 	return d.DieFeed(*r)
 }
 
+// DieFeedRawExtension returns the resource managed by the die as an raw extension.
+func (d *ServiceBindingStatusDie) DieFeedRawExtension(raw runtime.RawExtension) *ServiceBindingStatusDie {
+	b, _ := json.Marshal(raw)
+	r := apisv1beta1.ServiceBindingStatus{}
+	_ = json.Unmarshal(b, &r)
+	return d.DieFeed(r)
+}
+
 // DieRelease returns the resource managed by the die.
 func (d *ServiceBindingStatusDie) DieRelease() apisv1beta1.ServiceBindingStatus {
 	if d.mutable {
@@ -1006,6 +1195,15 @@ func (d *ServiceBindingStatusDie) DieRelease() apisv1beta1.ServiceBindingStatus 
 func (d *ServiceBindingStatusDie) DieReleasePtr() *apisv1beta1.ServiceBindingStatus {
 	r := d.DieRelease()
 	return &r
+}
+
+// DieReleaseRawExtension returns the resource managed by the die as an raw extension.
+func (d *ServiceBindingStatusDie) DieReleaseRawExtension() runtime.RawExtension {
+	r := d.DieReleasePtr()
+	b, _ := json.Marshal(r)
+	raw := runtime.RawExtension{}
+	_ = json.Unmarshal(b, &raw)
+	return raw
 }
 
 // DieStamp returns a new die with the resource passed to the callback function. The resource is mutable.
@@ -1082,6 +1280,14 @@ func (d *ServiceBindingSecretReferenceDie) DieFeedPtr(r *apisv1beta1.ServiceBind
 	return d.DieFeed(*r)
 }
 
+// DieFeedRawExtension returns the resource managed by the die as an raw extension.
+func (d *ServiceBindingSecretReferenceDie) DieFeedRawExtension(raw runtime.RawExtension) *ServiceBindingSecretReferenceDie {
+	b, _ := json.Marshal(raw)
+	r := apisv1beta1.ServiceBindingSecretReference{}
+	_ = json.Unmarshal(b, &r)
+	return d.DieFeed(r)
+}
+
 // DieRelease returns the resource managed by the die.
 func (d *ServiceBindingSecretReferenceDie) DieRelease() apisv1beta1.ServiceBindingSecretReference {
 	if d.mutable {
@@ -1094,6 +1300,15 @@ func (d *ServiceBindingSecretReferenceDie) DieRelease() apisv1beta1.ServiceBindi
 func (d *ServiceBindingSecretReferenceDie) DieReleasePtr() *apisv1beta1.ServiceBindingSecretReference {
 	r := d.DieRelease()
 	return &r
+}
+
+// DieReleaseRawExtension returns the resource managed by the die as an raw extension.
+func (d *ServiceBindingSecretReferenceDie) DieReleaseRawExtension() runtime.RawExtension {
+	r := d.DieReleasePtr()
+	b, _ := json.Marshal(r)
+	raw := runtime.RawExtension{}
+	_ = json.Unmarshal(b, &raw)
+	return raw
 }
 
 // DieStamp returns a new die with the resource passed to the callback function. The resource is mutable.
