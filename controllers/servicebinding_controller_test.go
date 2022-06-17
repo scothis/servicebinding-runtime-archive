@@ -19,7 +19,6 @@ package controllers_test
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	dieappsv1 "dies.dev/apis/apps/v1"
 	diecorev1 "dies.dev/apis/core/v1"
@@ -62,7 +61,6 @@ func TestServiceBindingReconciler(t *testing.T) {
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Namespace(namespace)
 			d.Name(name)
-			d.ResourceVersion("999")
 			d.UID(uid)
 		}).
 		SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
@@ -86,8 +84,6 @@ func TestServiceBindingReconciler(t *testing.T) {
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Namespace(namespace)
 			d.Name("my-workload")
-			d.CreationTimestamp(now)
-			d.ResourceVersion("999")
 		}).
 		SpecDie(func(d *dieappsv1.DeploymentSpecDie) {
 			d.TemplateDie(func(d *diecorev1.PodTemplateSpecDie) {
@@ -279,7 +275,6 @@ func TestResolveBindingSecret(t *testing.T) {
 	notProvisionedService.SetKind("MyProvisionedService")
 	notProvisionedService.SetNamespace(namespace)
 	notProvisionedService.SetName("my-service")
-	notProvisionedService.SetResourceVersion("999")
 	provisionedService := notProvisionedService.DeepCopy()
 	provisionedService.UnstructuredContent()["status"] = map[string]interface{}{
 		"binding": map[string]interface{}{
@@ -451,11 +446,7 @@ func TestResolveWorkload(t *testing.T) {
 
 	workload := dieappsv1.DeploymentBlank.
 		APIVersion("apps/v1").
-		Kind("Deployment").
-		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
-			d.ResourceVersion("999")
-			d.CreationTimestamp(metav1.NewTime(time.UnixMilli(1000)))
-		})
+		Kind("Deployment")
 	workload1 := workload.
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Namespace(namespace)
@@ -679,7 +670,6 @@ func TestProjectBinding(t *testing.T) {
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Namespace(namespace)
 			d.Name(name)
-			d.ResourceVersion("999")
 			d.UID(uid)
 		}).
 		SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
@@ -704,7 +694,6 @@ func TestProjectBinding(t *testing.T) {
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Namespace(namespace)
 			d.Name("my-workload")
-			d.ResourceVersion("999")
 		}).
 		SpecDie(func(d *dieappsv1.DeploymentSpecDie) {
 			d.TemplateDie(func(d *diecorev1.PodTemplateSpecDie) {
@@ -830,7 +819,6 @@ func TestPatchWorkloads(t *testing.T) {
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Namespace(namespace)
 			d.Name(name)
-			d.CreationTimestamp(now)
 		}).
 		StatusDie(func(d *dieservicebindingv1beta1.ServiceBindingStatusDie) {
 			d.ConditionsDie(
@@ -849,7 +837,6 @@ func TestPatchWorkloads(t *testing.T) {
 			d.Namespace(namespace)
 			d.Name("my-workload")
 			d.CreationTimestamp(now)
-			d.ResourceVersion("999")
 			d.UID(uid)
 		}).
 		SpecDie(func(d *dieappsv1.DeploymentSpecDie) {

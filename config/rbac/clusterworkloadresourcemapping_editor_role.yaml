@@ -5,7 +5,7 @@ metadata:
   name: clusterworkloadresourcemapping-editor-role
 rules:
 - apiGroups:
-  - servicebinservicebinding.io
+  - servicebinding.io
   resources:
   - clusterworkloadresourcemappings
   verbs:

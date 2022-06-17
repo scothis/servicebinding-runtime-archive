@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	dieadmissionv1 "dies.dev/apis/admission/v1"
 	dieadmissionregistrationv1 "dies.dev/apis/admissionregistration/v1"
@@ -62,8 +61,6 @@ func TestAdmissionProjectorReconciler(t *testing.T) {
 	name := "my-webhook"
 	key := types.NamespacedName{Name: name}
 
-	now := metav1.Now().Rfc3339Copy()
-
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(servicebindingv1beta1.AddToScheme(scheme))
@@ -71,7 +68,6 @@ func TestAdmissionProjectorReconciler(t *testing.T) {
 	webhook := dieadmissionregistrationv1.MutatingWebhookConfigurationBlank.
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Name(name)
-			d.CreationTimestamp(now)
 		}).
 		WebhookDie("projector.servicebinding.io", func(d *dieadmissionregistrationv1.MutatingWebhookDie) {
 			d.ClientConfigDie(func(d *dieadmissionregistrationv1.WebhookClientConfigDie) {
@@ -497,8 +493,6 @@ func TestTriggerReconciler(t *testing.T) {
 	name := "my-webhook"
 	key := types.NamespacedName{Name: name}
 
-	now := metav1.Now().Rfc3339Copy()
-
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(servicebindingv1beta1.AddToScheme(scheme))
@@ -506,7 +500,6 @@ func TestTriggerReconciler(t *testing.T) {
 	webhook := dieadmissionregistrationv1.ValidatingWebhookConfigurationBlank.
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Name(name)
-			d.CreationTimestamp(now)
 		}).
 		WebhookDie("trigger.servicebinding.io", func(d *dieadmissionregistrationv1.ValidatingWebhookDie) {
 			d.ClientConfigDie(func(d *dieadmissionregistrationv1.WebhookClientConfigDie) {
@@ -754,8 +747,6 @@ func TestLoadServiceBindings(t *testing.T) {
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Namespace("my-namespace")
 			d.Name("my-binding")
-			d.ResourceVersion("999")
-			d.CreationTimestamp(metav1.NewTime(time.UnixMilli(1000)))
 		}).
 		SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
 			d.ServiceDie(func(d *dieservicebindingv1beta1.ServiceBindingServiceReferenceDie) {
@@ -810,7 +801,6 @@ func TestInterceptGVKs(t *testing.T) {
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Namespace("my-namespace")
 			d.Name("my-binding")
-			d.ResourceVersion("999")
 		}).
 		SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
 			d.ServiceDie(func(d *dieservicebindingv1beta1.ServiceBindingServiceReferenceDie) {
@@ -873,7 +863,6 @@ func TestTriggerGVKs(t *testing.T) {
 		MetadataDie(func(d *diemetav1.ObjectMetaDie) {
 			d.Namespace("my-namespace")
 			d.Name("my-binding")
-			d.ResourceVersion("999")
 		}).
 		SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
 			d.ServiceDie(func(d *dieservicebindingv1beta1.ServiceBindingServiceReferenceDie) {
