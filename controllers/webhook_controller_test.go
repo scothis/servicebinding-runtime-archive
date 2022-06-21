@@ -59,7 +59,7 @@ import (
 
 func TestAdmissionProjectorReconciler(t *testing.T) {
 	name := "my-webhook"
-	key := types.NamespacedName{Name: name}
+	req := reconcile.Request{NamespacedName: types.NamespacedName{Name: name}}
 
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -106,65 +106,66 @@ func TestAdmissionProjectorReconciler(t *testing.T) {
 			})
 		})
 
-	rts := rtesting.ReconcilerTestSuite{{
-		Name: "in sync",
-		Key:  key,
-		GivenObjects: []client.Object{
-			webhook,
-			serviceBinding,
+	rts := rtesting.ReconcilerTests{
+		"in sync": {
+			Request: req,
+			GivenObjects: []client.Object{
+				webhook,
+				serviceBinding,
+			},
+			WithReactors: []rtesting.ReactionFunc{
+				allowSelfSubjectAccessReviewFor("apps", "deployments", "update"),
+			},
+			ExpectCreates: []client.Object{
+				selfSubjectAccessReviewFor("apps", "deployments", "update"),
+			},
 		},
-		WithReactors: []rtesting.ReactionFunc{
-			allowSelfSubjectAccessReviewFor("apps", "deployments", "update"),
+		"update": {
+			Request: req,
+			GivenObjects: []client.Object{
+				webhook.
+					WebhookDie("projector.servicebinding.io", func(d *dieadmissionregistrationv1.MutatingWebhookDie) {
+						d.Rules()
+					}),
+				serviceBinding,
+			},
+			WithReactors: []rtesting.ReactionFunc{
+				allowSelfSubjectAccessReviewFor("apps", "deployments", "update"),
+			},
+			ExpectEvents: []rtesting.Event{
+				rtesting.NewEvent(webhook, scheme, corev1.EventTypeNormal, "Updated", "Updated MutatingWebhookConfiguration %q", name),
+			},
+			ExpectCreates: []client.Object{
+				selfSubjectAccessReviewFor("apps", "deployments", "update"),
+			},
+			ExpectUpdates: []client.Object{
+				webhook,
+			},
 		},
-		ExpectCreates: []client.Object{
-			selfSubjectAccessReviewFor("apps", "deployments", "update"),
+		"ignore other keys": {
+			Request: reconcile.Request{NamespacedName: types.NamespacedName{
+				Name: "other-webhook",
+			}},
+			GivenObjects: []client.Object{
+				webhook.
+					WebhookDie("projector.servicebinding.io", func(d *dieadmissionregistrationv1.MutatingWebhookDie) {
+						d.Rules()
+					}),
+				serviceBinding,
+			},
 		},
-	}, {
-		Name: "update",
-		Key:  key,
-		GivenObjects: []client.Object{
-			webhook.
-				WebhookDie("projector.servicebinding.io", func(d *dieadmissionregistrationv1.MutatingWebhookDie) {
-					d.Rules()
-				}),
-			serviceBinding,
+		"ignore malformed webhook": {
+			Request: req,
+			GivenObjects: []client.Object{
+				webhook.
+					Webhooks(),
+				serviceBinding,
+			},
+			ExpectCreates: []client.Object{
+				selfSubjectAccessReviewFor("apps", "deployments", "update"),
+			},
 		},
-		WithReactors: []rtesting.ReactionFunc{
-			allowSelfSubjectAccessReviewFor("apps", "deployments", "update"),
-		},
-		ExpectEvents: []rtesting.Event{
-			rtesting.NewEvent(webhook, scheme, corev1.EventTypeNormal, "Updated", "Updated MutatingWebhookConfiguration %q", name),
-		},
-		ExpectCreates: []client.Object{
-			selfSubjectAccessReviewFor("apps", "deployments", "update"),
-		},
-		ExpectUpdates: []client.Object{
-			webhook,
-		},
-	}, {
-		Name: "ignore other keys",
-		Key: types.NamespacedName{
-			Name: "other-webhook",
-		},
-		GivenObjects: []client.Object{
-			webhook.
-				WebhookDie("projector.servicebinding.io", func(d *dieadmissionregistrationv1.MutatingWebhookDie) {
-					d.Rules()
-				}),
-			serviceBinding,
-		},
-	}, {
-		Name: "ignore malformed webhook",
-		Key:  key,
-		GivenObjects: []client.Object{
-			webhook.
-				Webhooks(),
-			serviceBinding,
-		},
-		ExpectCreates: []client.Object{
-			selfSubjectAccessReviewFor("apps", "deployments", "update"),
-		},
-	}}
+	}
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.ReconcilerTestCase, c reconcilers.Config) reconcile.Reconciler {
 		restMapper := c.RESTMapper().(*meta.DefaultRESTMapper)
@@ -491,7 +492,7 @@ func TestAdmissionProjectorWebhook(t *testing.T) {
 
 func TestTriggerReconciler(t *testing.T) {
 	name := "my-webhook"
-	key := types.NamespacedName{Name: name}
+	req := reconcile.Request{NamespacedName: types.NamespacedName{Name: name}}
 
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -548,74 +549,75 @@ func TestTriggerReconciler(t *testing.T) {
 			})
 		})
 
-	rts := rtesting.ReconcilerTestSuite{{
-		Name: "in sync",
-		Key:  key,
-		GivenObjects: []client.Object{
-			webhook,
-			serviceBinding,
+	rts := rtesting.ReconcilerTests{
+		"in sync": {
+			Request: req,
+			GivenObjects: []client.Object{
+				webhook,
+				serviceBinding,
+			},
+			WithReactors: []rtesting.ReactionFunc{
+				allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+				allowSelfSubjectAccessReviewFor("example", "myservices", "get"),
+			},
+			ExpectCreates: []client.Object{
+				selfSubjectAccessReviewFor("apps", "deployments", "get"),
+				selfSubjectAccessReviewFor("example", "myservices", "get"),
+			},
 		},
-		WithReactors: []rtesting.ReactionFunc{
-			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
-			allowSelfSubjectAccessReviewFor("example", "myservices", "get"),
+		"update": {
+			Request: req,
+			GivenObjects: []client.Object{
+				webhook.
+					WebhookDie("trigger.servicebinding.io", func(d *dieadmissionregistrationv1.ValidatingWebhookDie) {
+						d.Rules()
+					}),
+				serviceBinding,
+			},
+			WithReactors: []rtesting.ReactionFunc{
+				allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+				allowSelfSubjectAccessReviewFor("example", "myservices", "get"),
+			},
+			ExpectEvents: []rtesting.Event{
+				rtesting.NewEvent(webhook, scheme, corev1.EventTypeNormal, "Updated", "Updated ValidatingWebhookConfiguration %q", name),
+			},
+			ExpectCreates: []client.Object{
+				selfSubjectAccessReviewFor("apps", "deployments", "get"),
+				selfSubjectAccessReviewFor("example", "myservices", "get"),
+			},
+			ExpectUpdates: []client.Object{
+				webhook,
+			},
 		},
-		ExpectCreates: []client.Object{
-			selfSubjectAccessReviewFor("apps", "deployments", "get"),
-			selfSubjectAccessReviewFor("example", "myservices", "get"),
+		"ignore other keys": {
+			Request: reconcile.Request{NamespacedName: types.NamespacedName{
+				Name: "other-webhook",
+			}},
+			GivenObjects: []client.Object{
+				webhook.
+					WebhookDie("trigger.servicebinding.io", func(d *dieadmissionregistrationv1.ValidatingWebhookDie) {
+						d.Rules()
+					}),
+				serviceBinding,
+			},
 		},
-	}, {
-		Name: "update",
-		Key:  key,
-		GivenObjects: []client.Object{
-			webhook.
-				WebhookDie("trigger.servicebinding.io", func(d *dieadmissionregistrationv1.ValidatingWebhookDie) {
-					d.Rules()
-				}),
-			serviceBinding,
+		"ignore malformed webhook": {
+			Request: req,
+			GivenObjects: []client.Object{
+				webhook.
+					Webhooks(),
+				serviceBinding,
+			},
+			WithReactors: []rtesting.ReactionFunc{
+				allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+				allowSelfSubjectAccessReviewFor("example", "myservices", "get"),
+			},
+			ExpectCreates: []client.Object{
+				selfSubjectAccessReviewFor("apps", "deployments", "get"),
+				selfSubjectAccessReviewFor("example", "myservices", "get"),
+			},
 		},
-		WithReactors: []rtesting.ReactionFunc{
-			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
-			allowSelfSubjectAccessReviewFor("example", "myservices", "get"),
-		},
-		ExpectEvents: []rtesting.Event{
-			rtesting.NewEvent(webhook, scheme, corev1.EventTypeNormal, "Updated", "Updated ValidatingWebhookConfiguration %q", name),
-		},
-		ExpectCreates: []client.Object{
-			selfSubjectAccessReviewFor("apps", "deployments", "get"),
-			selfSubjectAccessReviewFor("example", "myservices", "get"),
-		},
-		ExpectUpdates: []client.Object{
-			webhook,
-		},
-	}, {
-		Name: "ignore other keys",
-		Key: types.NamespacedName{
-			Name: "other-webhook",
-		},
-		GivenObjects: []client.Object{
-			webhook.
-				WebhookDie("trigger.servicebinding.io", func(d *dieadmissionregistrationv1.ValidatingWebhookDie) {
-					d.Rules()
-				}),
-			serviceBinding,
-		},
-	}, {
-		Name: "ignore malformed webhook",
-		Key:  key,
-		GivenObjects: []client.Object{
-			webhook.
-				Webhooks(),
-			serviceBinding,
-		},
-		WithReactors: []rtesting.ReactionFunc{
-			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
-			allowSelfSubjectAccessReviewFor("example", "myservices", "get"),
-		},
-		ExpectCreates: []client.Object{
-			selfSubjectAccessReviewFor("apps", "deployments", "get"),
-			selfSubjectAccessReviewFor("example", "myservices", "get"),
-		},
-	}}
+	}
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.ReconcilerTestCase, c reconcilers.Config) reconcile.Reconciler {
 		restMapper := c.RESTMapper().(*meta.DefaultRESTMapper)
@@ -761,28 +763,29 @@ func TestLoadServiceBindings(t *testing.T) {
 			})
 		})
 
-	rts := rtesting.SubReconcilerTestSuite{{
-		Name:     "list all servicebindings",
-		Resource: webhook,
-		GivenObjects: []client.Object{
-			serviceBinding,
-		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
-				serviceBinding.DieRelease(),
+	rts := rtesting.SubReconcilerTests{
+		"list all servicebindings": {
+			Resource: webhook,
+			GivenObjects: []client.Object{
+				serviceBinding,
+			},
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
+					serviceBinding.DieRelease(),
+				},
 			},
 		},
-	}, {
-		Name:     "error listing all servicebindings",
-		Resource: webhook,
-		GivenObjects: []client.Object{
-			serviceBinding,
+		"error listing all servicebindings": {
+			Resource: webhook,
+			GivenObjects: []client.Object{
+				serviceBinding,
+			},
+			WithReactors: []rtesting.ReactionFunc{
+				rtesting.InduceFailure("list", "ServiceBindingList"),
+			},
+			ShouldErr: true,
 		},
-		WithReactors: []rtesting.ReactionFunc{
-			rtesting.InduceFailure("list", "ServiceBindingList"),
-		},
-		ShouldErr: true,
-	}}
+	}
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.SubReconcilerTestCase, c reconcilers.Config) reconcilers.SubReconciler {
 		req := reconcile.Request{NamespacedName: types.NamespacedName{Name: "my-webhook"}}
@@ -815,37 +818,38 @@ func TestInterceptGVKs(t *testing.T) {
 			})
 		})
 
-	rts := rtesting.SubReconcilerTestSuite{{
-		Name:     "collect workload gvks",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
-				serviceBinding.DieRelease(),
+	rts := rtesting.SubReconcilerTests{
+		"collect workload gvks": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
+					serviceBinding.DieRelease(),
+				},
+			},
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "apps", Version: "v1", Kind: "Deployment"},
+				},
 			},
 		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "apps", Version: "v1", Kind: "Deployment"},
+		"append workload gvks": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
+					serviceBinding.DieRelease(),
+				},
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "example", Version: "v1", Kind: "MyService"},
+				},
+			},
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "example", Version: "v1", Kind: "MyService"},
+					{Group: "apps", Version: "v1", Kind: "Deployment"},
+				},
 			},
 		},
-	}, {
-		Name:     "append workload gvks",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
-				serviceBinding.DieRelease(),
-			},
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "example", Version: "v1", Kind: "MyService"},
-			},
-		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "example", Version: "v1", Kind: "MyService"},
-				{Group: "apps", Version: "v1", Kind: "Deployment"},
-			},
-		},
-	}}
+	}
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.SubReconcilerTestCase, c reconcilers.Config) reconcilers.SubReconciler {
 		return controllers.InterceptGVKs()
@@ -877,55 +881,56 @@ func TestTriggerGVKs(t *testing.T) {
 			})
 		})
 
-	rts := rtesting.SubReconcilerTestSuite{{
-		Name:     "collect service gvks",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
-				serviceBinding.DieRelease(),
+	rts := rtesting.SubReconcilerTests{
+		"collect service gvks": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
+					serviceBinding.DieRelease(),
+				},
+			},
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "example", Version: "v1", Kind: "MyService"},
+				},
 			},
 		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "example", Version: "v1", Kind: "MyService"},
+		"append service gvks": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
+					serviceBinding.DieRelease(),
+				},
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "apps", Version: "v1", Kind: "Deployment"},
+				},
+			},
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "apps", Version: "v1", Kind: "Deployment"},
+					{Group: "example", Version: "v1", Kind: "MyService"},
+				},
 			},
 		},
-	}, {
-		Name:     "append service gvks",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
-				serviceBinding.DieRelease(),
+		"ignore direct binding": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
+					serviceBinding.
+						SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
+							d.ServiceDie(func(d *dieservicebindingv1beta1.ServiceBindingServiceReferenceDie) {
+								d.APIVersion("v1")
+								d.Kind("Secret")
+							})
+						}).
+						DieRelease(),
+				},
 			},
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "apps", Version: "v1", Kind: "Deployment"},
-			},
-		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "apps", Version: "v1", Kind: "Deployment"},
-				{Group: "example", Version: "v1", Kind: "MyService"},
-			},
-		},
-	}, {
-		Name:     "ignore direct binding",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ServiceBindingsStashKey: []servicebindingv1beta1.ServiceBinding{
-				serviceBinding.
-					SpecDie(func(d *dieservicebindingv1beta1.ServiceBindingSpecDie) {
-						d.ServiceDie(func(d *dieservicebindingv1beta1.ServiceBindingServiceReferenceDie) {
-							d.APIVersion("v1")
-							d.Kind("Secret")
-						})
-					}).
-					DieRelease(),
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{},
 			},
 		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{},
-		},
-	}}
+	}
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.SubReconcilerTestCase, c reconcilers.Config) reconcilers.SubReconciler {
 		return controllers.TriggerGVKs()
@@ -943,175 +948,176 @@ func TestWebhookRules(t *testing.T) {
 		admissionregistrationv1.Connect,
 	}
 
-	rts := rtesting.SubReconcilerTestSuite{{
-		Name:     "empty",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{},
-		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{},
-		},
-	}, {
-		Name:     "convert",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "apps", Version: "v1", Kind: "Deployment"},
+	rts := rtesting.SubReconcilerTests{
+		"empty": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{},
+			},
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{},
 			},
 		},
-		WithReactors: []rtesting.ReactionFunc{
-			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
-		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{
-				{
-					Operations: operations,
-					Rule: admissionregistrationv1.Rule{
-						APIGroups:   []string{"apps"},
-						APIVersions: []string{"*"},
-						Resources:   []string{"deployments"},
+		"convert": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "apps", Version: "v1", Kind: "Deployment"},
+				},
+			},
+			WithReactors: []rtesting.ReactionFunc{
+				allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+			},
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{
+					{
+						Operations: operations,
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{"apps"},
+							APIVersions: []string{"*"},
+							Resources:   []string{"deployments"},
+						},
 					},
 				},
 			},
-		},
-		ExpectCreates: []client.Object{
-			selfSubjectAccessReviewFor("apps", "deployments", "get"),
-		},
-	}, {
-		Name:     "dedup versions",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "apps", Version: "v1", Kind: "Deployment"},
-				{Group: "apps", Version: "v1beta1", Kind: "Deployment"},
+			ExpectCreates: []client.Object{
+				selfSubjectAccessReviewFor("apps", "deployments", "get"),
 			},
 		},
-		WithReactors: []rtesting.ReactionFunc{
-			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
-		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{
-				{
-					Operations: operations,
-					Rule: admissionregistrationv1.Rule{
-						APIGroups:   []string{"apps"},
-						APIVersions: []string{"*"},
-						Resources:   []string{"deployments"},
+		"dedup versions": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "apps", Version: "v1", Kind: "Deployment"},
+					{Group: "apps", Version: "v1beta1", Kind: "Deployment"},
+				},
+			},
+			WithReactors: []rtesting.ReactionFunc{
+				allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+			},
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{
+					{
+						Operations: operations,
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{"apps"},
+							APIVersions: []string{"*"},
+							Resources:   []string{"deployments"},
+						},
 					},
 				},
 			},
-		},
-		ExpectCreates: []client.Object{
-			selfSubjectAccessReviewFor("apps", "deployments", "get"),
-		},
-	}, {
-		Name:     "merge resources of same group",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "apps", Version: "v1", Kind: "StatefulSet"},
-				{Group: "apps", Version: "v1", Kind: "Deployment"},
+			ExpectCreates: []client.Object{
+				selfSubjectAccessReviewFor("apps", "deployments", "get"),
 			},
 		},
-		WithReactors: []rtesting.ReactionFunc{
-			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
-			allowSelfSubjectAccessReviewFor("apps", "statefulsets", "get"),
-		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{
-				{
-					Operations: operations,
-					Rule: admissionregistrationv1.Rule{
-						APIGroups:   []string{"apps"},
-						APIVersions: []string{"*"},
-						Resources:   []string{"deployments", "statefulsets"},
+		"merge resources of same group": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "apps", Version: "v1", Kind: "StatefulSet"},
+					{Group: "apps", Version: "v1", Kind: "Deployment"},
+				},
+			},
+			WithReactors: []rtesting.ReactionFunc{
+				allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+				allowSelfSubjectAccessReviewFor("apps", "statefulsets", "get"),
+			},
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{
+					{
+						Operations: operations,
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{"apps"},
+							APIVersions: []string{"*"},
+							Resources:   []string{"deployments", "statefulsets"},
+						},
 					},
 				},
 			},
-		},
-		ExpectCreates: []client.Object{
-			selfSubjectAccessReviewFor("apps", "deployments", "get"),
-			selfSubjectAccessReviewFor("apps", "statefulsets", "get"),
-		},
-	}, {
-		Name:     "preserve resources of different group",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "batch", Version: "v1", Kind: "Job"},
-				{Group: "apps", Version: "v1", Kind: "Deployment"},
+			ExpectCreates: []client.Object{
+				selfSubjectAccessReviewFor("apps", "deployments", "get"),
+				selfSubjectAccessReviewFor("apps", "statefulsets", "get"),
 			},
 		},
-		WithReactors: []rtesting.ReactionFunc{
-			allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
-			allowSelfSubjectAccessReviewFor("batch", "jobs", "get"),
-		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{
-				{
-					Operations: operations,
-					Rule: admissionregistrationv1.Rule{
-						APIGroups:   []string{"apps"},
-						APIVersions: []string{"*"},
-						Resources:   []string{"deployments"},
-					},
-				},
-				{
-					Operations: operations,
-					Rule: admissionregistrationv1.Rule{
-						APIGroups:   []string{"batch"},
-						APIVersions: []string{"*"},
-						Resources:   []string{"jobs"},
-					},
+		"preserve resources of different group": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "batch", Version: "v1", Kind: "Job"},
+					{Group: "apps", Version: "v1", Kind: "Deployment"},
 				},
 			},
-		},
-		ExpectCreates: []client.Object{
-			selfSubjectAccessReviewFor("apps", "deployments", "get"),
-			selfSubjectAccessReviewFor("batch", "jobs", "get"),
-		},
-	}, {
-		Name:     "error on unknown resource",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "foo", Version: "v1", Kind: "Bar"},
+			WithReactors: []rtesting.ReactionFunc{
+				allowSelfSubjectAccessReviewFor("apps", "deployments", "get"),
+				allowSelfSubjectAccessReviewFor("batch", "jobs", "get"),
+			},
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{
+					{
+						Operations: operations,
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{"apps"},
+							APIVersions: []string{"*"},
+							Resources:   []string{"deployments"},
+						},
+					},
+					{
+						Operations: operations,
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{"batch"},
+							APIVersions: []string{"*"},
+							Resources:   []string{"jobs"},
+						},
+					},
+				},
+			},
+			ExpectCreates: []client.Object{
+				selfSubjectAccessReviewFor("apps", "deployments", "get"),
+				selfSubjectAccessReviewFor("batch", "jobs", "get"),
 			},
 		},
-		ShouldErr: true,
-	}, {
-		Name:     "drop denied resources",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "apps", Version: "v1", Kind: "Deployment"},
+		"error on unknown resource": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "foo", Version: "v1", Kind: "Bar"},
+				},
+			},
+			ShouldErr: true,
+		},
+		"drop denied resources": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "apps", Version: "v1", Kind: "Deployment"},
+				},
+			},
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{},
+			},
+			ExpectCreates: []client.Object{
+				selfSubjectAccessReviewFor("apps", "deployments", "get"),
 			},
 		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{},
-		},
-		ExpectCreates: []client.Object{
-			selfSubjectAccessReviewFor("apps", "deployments", "get"),
-		},
-	}, {
-		Name:     "treat SelfSubjectAccessReview errors as denied",
-		Resource: webhook,
-		GivenStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
-				{Group: "apps", Version: "v1", Kind: "Deployment"},
+		"treat SelfSubjectAccessReview errors as denied": {
+			Resource: webhook,
+			GivenStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.ObservedGVKsStashKey: []schema.GroupVersionKind{
+					{Group: "apps", Version: "v1", Kind: "Deployment"},
+				},
+			},
+			WithReactors: []rtesting.ReactionFunc{
+				rtesting.InduceFailure("create", "SelfSubjectAccessReview"),
+			},
+			ExpectStashedValues: map[reconcilers.StashKey]interface{}{
+				controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{},
+			},
+			ExpectCreates: []client.Object{
+				selfSubjectAccessReviewFor("apps", "deployments", "get"),
 			},
 		},
-		WithReactors: []rtesting.ReactionFunc{
-			rtesting.InduceFailure("create", "SelfSubjectAccessReview"),
-		},
-		ExpectStashedValues: map[reconcilers.StashKey]interface{}{
-			controllers.WebhookRulesStashKey: []admissionregistrationv1.RuleWithOperations{},
-		},
-		ExpectCreates: []client.Object{
-			selfSubjectAccessReviewFor("apps", "deployments", "get"),
-		},
-	}}
+	}
 
 	rts.Run(t, scheme, func(t *testing.T, rtc *rtesting.SubReconcilerTestCase, c reconcilers.Config) reconcilers.SubReconciler {
 		restMapper := c.RESTMapper().(*meta.DefaultRESTMapper)
